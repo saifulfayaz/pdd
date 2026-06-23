@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image → PDF</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f7f6f3;
+    --surface: #ffffff;
+    --border: #e2e0db;
+    --text: #1a1916;
+    --muted: #8a8780;
+    --accent: #2d2d2a;
+    --accent-hover: #1a1916;
+    --drop-bg: #f0efe9;
+    --radius: 10px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.05);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 20px 80px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+
+  header p {
+    margin-top: 6px;
+    font-size: 0.875rem;
+    color: var(--muted);
+  }
+
+  .card {
+    width: 100%;
+    max-width: 640px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  /* Drop zone */
+  #dropzone {
+    padding: 52px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+    text-align: center;
+  }
+
+  #dropzone:hover, #dropzone.drag-over {
+    background: var(--drop-bg);
+  }
+
+  #dropzone svg {
+    opacity: 0.35;
+  }
+
+  #dropzone .dz-label {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  #dropzone .dz-sub {
+    font-size: 0.8125rem;
+    color: var(--muted);
+  }
+
+  #dropzone .dz-browse {
+    margin-top: 4px;
+    font-size: 0.8125rem;
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  #fileInput { display: none; }
+
+  /* Image list */
+  #imageList {
+    display: none;
+    flex-direction: column;
+  }
+
+  #listHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.8125rem;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  #listHeader span { color: var(--text); }
+
+  .clear-btn {
+    background: none;
+    border: none;
+    font-size: 0.8125rem;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: color 0.1s, background 0.1s;
+  }
+
+  .clear-btn:hover { color: #c0392b; background: #fdf2f2; }
+
+  #items {
+    max-height: 340px;
+    overflow-y: auto;
+  }
+
+  .item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--border);
+    animation: fadeIn 0.2s ease;
+  }
+
+  .item:last-child { border-bottom: none; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  .item-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 5px;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+    background: var(--drop-bg);
+  }
+
+  .item-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .item-name {
+    font-size: 0.875rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text);
+  }
+
+  .item-meta {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .item-actions {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 5px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.1s, background 0.1s;
+    line-height: 0;
+  }
+
+  .icon-btn:hover { background: var(--drop-bg); color: var(--text); }
+  .icon-btn.del:hover { background: #fdf2f2; color: #c0392b; }
+  .icon-btn:disabled { opacity: 0.3; cursor: default; }
+
+  /* Add more row */
+  #addMoreRow {
+    display: none;
+    padding: 12px 18px;
+    border-top: 1px solid var(--border);
+  }
+
+  .add-more-btn {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: none;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 0.8125rem;
+    color: var(--muted);
+    cursor: pointer;
+    width: 100%;
+    justify-content: center;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+
+  .add-more-btn:hover { border-color: var(--accent); color: var(--text); background: var(--drop-bg); }
+
+  /* Footer / generate */
+  #footer {
+    display: none;
+    padding: 16px 18px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .filename-wrap {
+    flex: 1;
+    position: relative;
+  }
+
+  .filename-wrap input {
+    width: 100%;
+    padding: 9px 12px;
+    font-size: 0.875rem;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--bg);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+    font-family: inherit;
+  }
+
+  .filename-wrap input:focus { border-color: var(--accent); }
+
+  .filename-wrap .ext {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.8125rem;
+    color: var(--muted);
+    pointer-events: none;
+  }
+
+  #generateBtn {
+    flex-shrink: 0;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    padding: 9px 20px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+
+  #generateBtn:hover { background: var(--accent-hover); }
+  #generateBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Progress */
+  #progress {
+    display: none;
+    padding: 14px 18px;
+    border-top: 1px solid var(--border);
+  }
+
+  .progress-bar-wrap {
+    background: var(--drop-bg);
+    border-radius: 99px;
+    height: 4px;
+    overflow: hidden;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 99px;
+    transition: width 0.2s ease;
+    width: 0%;
+  }
+
+  .progress-label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 6px;
+    text-align: center;
+  }
+
+  /* Toast */
+  #toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(12px);
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.875rem;
+    padding: 10px 20px;
+    border-radius: 99px;
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 9999;
+  }
+
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Empty drop zone visual */
+  #dropzone-icon {
+    width: 48px;
+    height: 48px;
+    background: var(--drop-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 4px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Image → PDF</h1>
+  <p>Combine images into a PDF. Each page matches its image size.</p>
+</header>
+
+<div class="card">
+  <!-- Drop zone -->
+  <div id="dropzone">
+    <div id="dropzone-icon">
+      <svg width="22" height="22" fill="none" stroke="#1a1916" stroke-width="1.8" viewBox="0 0 24 24">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+    </div>
+    <div class="dz-label">Drop images here</div>
+    <div class="dz-sub">JPG, PNG, WebP, GIF — any order</div>
+    <div class="dz-browse" id="browseLink">Browse files</div>
+    <input type="file" id="fileInput" multiple accept="image/*">
+  </div>
+
+  <!-- Image list (shown after files added) -->
+  <div id="imageList">
+    <div id="listHeader">
+      <span id="countLabel">0 images</span>
+      <button class="clear-btn" id="clearAllBtn">Clear all</button>
+    </div>
+    <div id="items"></div>
+
+    <div id="addMoreRow">
+      <button class="add-more-btn" id="addMoreBtn">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Add more images
+      </button>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div id="progress">
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressFill"></div></div>
+    <div class="progress-label" id="progressLabel">Preparing…</div>
+  </div>
+
+  <!-- Footer -->
+  <div id="footer" style="display:none">
+    <div class="filename-wrap">
+      <input type="text" id="filename" value="document" placeholder="filename" spellcheck="false">
+      <span class="ext">.pdf</span>
+    </div>
+    <button id="generateBtn">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Export PDF
+    </button>
+  </div>
+</div>
+
+<div id="toast">PDF downloaded</div>
+
+<script>
+  const { jsPDF } = window.jspdf;
+
+  let files = []; // { file, url, w, h, name }
+
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const browseLink = document.getElementById('browseLink');
+  const imageList = document.getElementById('imageList');
+  const items = document.getElementById('items');
+  const countLabel = document.getElementById('countLabel');
+  const clearAllBtn = document.getElementById('clearAllBtn');
+  const addMoreRow = document.getElementById('addMoreRow');
+  const addMoreBtn = document.getElementById('addMoreBtn');
+  const footer = document.getElementById('footer');
+  const generateBtn = document.getElementById('generateBtn');
+  const filenameInput = document.getElementById('filename');
+  const progressEl = document.getElementById('progress');
+  const progressFill = document.getElementById('progressFill');
+  const progressLabel = document.getElementById('progressLabel');
+  const toast = document.getElementById('toast');
+
+  browseLink.addEventListener('click', () => fileInput.click());
+  addMoreBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('drag-over');
+    handleFiles(e.dataTransfer.files);
+  });
+
+  clearAllBtn.addEventListener('click', () => {
+    files = [];
+    items.innerHTML = '';
+    render();
+  });
+
+  async function handleFiles(fileList) {
+    const imageFiles = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+    if (!imageFiles.length) return;
+
+    for (const file of imageFiles) {
+      const entry = await loadImage(file);
+      files.push(entry);
+    }
+
+    fileInput.value = '';
+    render();
+  }
+
+  function loadImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => resolve({ file, url, w: img.naturalWidth, h: img.naturalHeight, name: file.name });
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
+  function render() {
+    const hasFiles = files.length > 0;
+
+    // Toggle sections
+    dropzone.style.display = hasFiles ? 'none' : '';
+    imageList.style.display = hasFiles ? 'flex' : 'none';
+    footer.style.display = hasFiles ? 'flex' : 'none';
+    addMoreRow.style.display = hasFiles ? 'block' : 'none';
+    progressEl.style.display = 'none';
+
+    countLabel.textContent = `${files.length} image${files.length !== 1 ? 's' : ''}`;
+
+    // Rebuild list
+    items.innerHTML = '';
+    files.forEach((f, i) => {
+      const div = document.createElement('div');
+      div.className = 'item';
+      div.innerHTML = `
+        <img class="item-thumb" src="${f.url}" alt="">
+        <div class="item-info">
+          <div class="item-name">${f.name}</div>
+          <div class="item-meta">${f.w} × ${f.h}px · ${formatSize(f.file.size)}</div>
+        </div>
+        <div class="item-actions">
+          <button class="icon-btn" data-action="up" data-i="${i}" title="Move up" ${i===0?'disabled':''}>
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>
+          </button>
+          <button class="icon-btn" data-action="down" data-i="${i}" title="Move down" ${i===files.length-1?'disabled':''}>
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <button class="icon-btn del" data-action="del" data-i="${i}" title="Remove">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>`;
+      items.appendChild(div);
+    });
+  }
+
+  items.addEventListener('click', e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const i = parseInt(btn.dataset.i);
+    const action = btn.dataset.action;
+    if (action === 'del') { URL.revokeObjectURL(files[i].url); files.splice(i, 1); }
+    else if (action === 'up' && i > 0) { [files[i-1], files[i]] = [files[i], files[i-1]]; }
+    else if (action === 'down' && i < files.length - 1) { [files[i], files[i+1]] = [files[i+1], files[i]]; }
+    render();
+  });
+
+  generateBtn.addEventListener('click', async () => {
+    if (!files.length) return;
+    generateBtn.disabled = true;
+    progressEl.style.display = 'block';
+    progressFill.style.width = '0%';
+
+    try {
+      await generatePDF();
+    } catch(e) {
+      console.error(e);
+      alert('Something went wrong generating the PDF.');
+    }
+
+    generateBtn.disabled = false;
+    progressEl.style.display = 'none';
+  });
+
+  async function generatePDF() {
+    const first = files[0];
+
+    // Use first image orientation to initialise; we'll override each page anyway
+    const orientation = first.w >= first.h ? 'l' : 'p';
+    const pdf = new jsPDF({
+      orientation,
+      unit: 'px',
+      format: [first.w, first.h],
+      hotfixes: ['px_scaling'],
+    });
+
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const pct = Math.round((i / files.length) * 100);
+      progressFill.style.width = pct + '%';
+      progressLabel.textContent = `Processing ${i + 1} of ${files.length}…`;
+
+      if (i > 0) {
+        pdf.addPage([f.w, f.h], f.w >= f.h ? 'l' : 'p');
+      }
+
+      // Load as base64
+      const b64 = await toBase64(f.file);
+      const ext = imageExt(f.file.type);
+      pdf.addImage(b64, ext, 0, 0, f.w, f.h);
+
+      // Yield to keep UI responsive
+      await sleep(0);
+    }
+
+    progressFill.style.width = '100%';
+    progressLabel.textContent = 'Saving…';
+    await sleep(80);
+
+    const name = (filenameInput.value.trim() || 'document') + '.pdf';
+    pdf.save(name);
+    showToast('PDF downloaded');
+  }
+
+  function toBase64(file) {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result.split(',')[1]);
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+  }
+
+  function imageExt(mime) {
+    if (mime === 'image/jpeg') return 'JPEG';
+    if (mime === 'image/png') return 'PNG';
+    if (mime === 'image/webp') return 'WEBP';
+    return 'PNG';
+  }
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2200);
+  }
+</script>
+</body>
+</html>
