@@ -142,7 +142,7 @@
     .drop small { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; }
     input[type=file] { display: none; }
 
-    .size-box, .effect-box, .sharp-home, .status-card {
+    .size-box, .effect-box, .crop-mode-box, .sharp-home, .status-card {
       margin-top: 0;
       padding: 10px;
       border: 1px solid var(--line);
@@ -163,6 +163,25 @@
       font-size: 13px;
     }
     .size-option.active { background: #fff; border-color: var(--line-strong); color: var(--accent); box-shadow: 0 8px 18px rgba(31,41,34,.06); }
+
+    .crop-mode-options { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+    .crop-mode-option {
+      min-height: 38px;
+      border-radius: 14px;
+      padding: 9px 8px;
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--line);
+      box-shadow: none;
+      font-size: 13px;
+    }
+    .crop-mode-option.active {
+      background: linear-gradient(135deg, #193327, var(--accent));
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 10px 20px rgba(49,88,70,.14);
+    }
+    .crop-mode-option small { display: block; margin-top: 2px; font-size: 10px; font-weight: 750; opacity: .72; }
 
     .effect-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
     .effect-label, .sharp-home-title { font-size: 13px; font-weight: 920; letter-spacing: -.01em; }
@@ -355,7 +374,7 @@
       .controls { position: static; padding: 10px; grid-template-columns: 1fr; }
       .drop { min-height: 88px; border-radius: 20px; }
       .drop-icon { width: 36px; height: 36px; margin-bottom: 5px; font-size: 21px; }
-      .size-box, .effect-box, .sharp-home, .status-card { border-radius: 18px; padding: 9px; }
+      .size-box, .effect-box, .crop-mode-box, .sharp-home, .status-card { border-radius: 18px; padding: 9px; }
       .size-options { grid-template-columns: repeat(2, 1fr); }
       .list-panel { min-height: 350px; }
       .image-list { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); padding: 10px; gap: 9px; }
@@ -421,6 +440,14 @@
           </div>
         </div>
 
+        <div class="crop-mode-box">
+          <p class="size-label">Crop mode</p>
+          <div class="crop-mode-options" aria-label="Crop mode for all images">
+            <button class="crop-mode-option active" type="button" data-crop-mode="normal">Normal<small>rectangle</small></button>
+            <button class="crop-mode-option" type="button" data-crop-mode="perspective">Perspective<small>corners</small></button>
+          </div>
+        </div>
+
         <div class="sharp-home">
           <div class="sharp-home-top">
             <div class="sharp-home-title">Sharpness</div>
@@ -469,8 +496,8 @@
     <div class="crop-card">
       <div class="crop-head">
         <div>
-          <div class="crop-title">Perspective crop</div>
-          <div class="crop-hint">Move the numbered corners, then apply</div>
+          <div class="crop-title" id="cropTitle">Normal crop</div>
+          <div class="crop-hint" id="cropHint">Move the rectangle corners, then apply</div>
         </div>
         <div class="crop-tools">
           <button class="ghost" id="cropResetBtn" type="button">Reset</button>
@@ -480,7 +507,7 @@
       </div>
       <div class="crop-stage" id="cropStage">
         <img id="cropImage" class="crop-img" alt="Crop image" />
-        <span class="crop-hint-overlay" aria-hidden="true">Drag the numbered corners to adjust</span>
+        <span class="crop-hint-overlay" id="cropHintOverlay" aria-hidden="true">Drag the rectangle corners to adjust</span>
         <svg class="crop-svg" id="cropSvg" aria-hidden="true">
           <path class="crop-shade" id="cropShade"></path>
           <polygon class="crop-line" id="cropPoly"></polygon>
@@ -523,9 +550,13 @@
     const miniStatus = document.getElementById('miniStatus');
     const sizeButtons = [...document.querySelectorAll('.size-option')];
     const greyscaleToggle = document.getElementById('greyscaleToggle');
+    const cropModeButtons = [...document.querySelectorAll('[data-crop-mode]')];
 
     const cropModal = document.getElementById('cropModal');
     const cropStage = document.getElementById('cropStage');
+    const cropTitle = document.getElementById('cropTitle');
+    const cropHint = document.getElementById('cropHint');
+    const cropHintOverlay = document.getElementById('cropHintOverlay');
     const cropImage = document.getElementById('cropImage');
     const cropShade = document.getElementById('cropShade');
     const cropPoly = document.getElementById('cropPoly');
@@ -552,6 +583,7 @@
 
     let images = [];
     let pageMode = 'original';
+    let cropMode = 'normal';
     let greyscaleAll = false;
     let isWorking = false;
     let pdfUrl = '';
@@ -582,6 +614,13 @@
         pageMode = button.dataset.size;
         sizeButtons.forEach(btn => btn.classList.toggle('active', btn === button));
         clearPdfUrl();
+      });
+    });
+
+    cropModeButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        if (isWorking || cropModal.classList.contains('show')) return;
+        setCropMode(button.dataset.cropMode || 'normal');
       });
     });
 
@@ -632,6 +671,20 @@
         removeImage(selectedId);
       }
     });
+
+    function setCropMode(mode) {
+      cropMode = mode === 'perspective' ? 'perspective' : 'normal';
+      cropModeButtons.forEach(button => button.classList.toggle('active', button.dataset.cropMode === cropMode));
+      setStatus(cropMode === 'perspective' ? 'Perspective crop selected' : 'Normal crop selected');
+    }
+
+    function updateCropModalText(mode) {
+      const isPerspective = mode === 'perspective';
+      cropModal.dataset.mode = isPerspective ? 'perspective' : 'normal';
+      cropTitle.textContent = isPerspective ? 'Perspective crop' : 'Normal crop';
+      cropHint.textContent = isPerspective ? 'Move each corner to correct tilted images' : 'Drag the rectangle corners to select the crop area';
+      cropHintOverlay.textContent = isPerspective ? 'Drag any numbered corner to correct perspective' : 'Drag a corner or tap inside the image to resize the rectangle';
+    }
 
     async function addFiles(files) {
       if (isWorking) return;
@@ -737,6 +790,7 @@
       clearBtn.disabled = isWorking || !images.length;
       addMoreBtn.disabled = isWorking;
       sizeButtons.forEach(button => { button.disabled = isWorking; });
+      cropModeButtons.forEach(button => { button.disabled = isWorking || cropModal.classList.contains('show'); });
       greyscaleToggle.disabled = isWorking;
       const selected = getSelectedImage();
       const sharpDisabled = isWorking || !selected || selected.loading || selected.error;
@@ -750,7 +804,8 @@
       const tile = document.createElement('article');
       tile.className = `tile${dragId === item.id ? ' dragging' : ''}${selectedId === item.id ? ' selected' : ''}${item.cropped ? ' has-crop' : ''}${animate ? ' added' : ''}`;
       tile.dataset.id = item.id;
-      const dimText = item.loading ? 'Loading...' : item.error ? 'Not supported' : `${item.width} × ${item.height}${item.cropped ? ' • cropped' : ''}${item.sharpness ? ` • sharp ${Math.round(item.sharpness)}%` : ''}`;
+      const cropLabel = item.cropped ? ` • ${item.cropMode === 'normal' ? 'normal crop' : 'perspective crop'}` : '';
+      const dimText = item.loading ? 'Loading...' : item.error ? 'Not supported' : `${item.width} × ${item.height}${cropLabel}${item.sharpness ? ` • sharp ${Math.round(item.sharpness)}%` : ''}`;
       const nameText = `Page ${index + 1}`;
       const preview = item.loading ? '<div class="loader-small" aria-hidden="true"></div>' : item.error ? '<span style="color:#9e3e37;font-size:12px;font-weight:850">Error</span>' : `<img src="${item.url}" alt="Page ${index + 1}" loading="lazy">`;
 
@@ -925,16 +980,19 @@
 
       cropState = {
         item,
+        mode: cropMode,
         imageRect: null,
         points: [],
         active: -1,
         sourceImage: null
       };
+      updateCropModalText(cropState.mode);
       cropImage.src = item.url;
       cropModal.classList.add('show');
       cropModal.setAttribute('aria-hidden', 'false');
       document.body.classList.add('modal-open');
-      setStatus('Crop mode');
+      setStatus(cropState.mode === 'perspective' ? 'Perspective crop mode' : 'Normal crop mode');
+      updateControls();
 
       try {
         cropState.sourceImage = await loadImageFromUrl(item.url, false);
@@ -1015,7 +1073,7 @@
         const d = Math.hypot(point.x - x, point.y - y);
         if (d < best) { best = d; nearest = index; }
       });
-      cropState.points[nearest] = { x, y };
+      setCropPoint(nearest, { x, y });
       updateCropOverlay();
       beginCropDrag(event, nearest);
     }
@@ -1046,8 +1104,57 @@
         x: clamp(event.clientX - s.left, r.x, r.x + r.w),
         y: clamp(event.clientY - s.top, r.y, r.y + r.h)
       };
-      cropState.points[cropState.active] = point;
+      setCropPoint(cropState.active, point);
       updateCropOverlay();
+    }
+
+    function setCropPoint(index, point) {
+      if (!cropState || !cropState.points.length) return;
+      if (cropState.mode !== 'normal') {
+        cropState.points[index] = point;
+        return;
+      }
+      const r = cropState.imageRect;
+      const p = cropState.points;
+      const opposite = p[(index + 2) % 4];
+      const minSize = Math.min(18, Math.max(8, Math.min(r.w, r.h) * 0.04));
+      let left = Math.min(point.x, opposite.x);
+      let right = Math.max(point.x, opposite.x);
+      let top = Math.min(point.y, opposite.y);
+      let bottom = Math.max(point.y, opposite.y);
+
+      if (right - left < minSize) {
+        if (point.x < opposite.x) left = Math.max(r.x, right - minSize);
+        else right = Math.min(r.x + r.w, left + minSize);
+      }
+      if (bottom - top < minSize) {
+        if (point.y < opposite.y) top = Math.max(r.y, bottom - minSize);
+        else bottom = Math.min(r.y + r.h, top + minSize);
+      }
+
+      cropState.points = [
+        { x: left, y: top },
+        { x: right, y: top },
+        { x: right, y: bottom },
+        { x: left, y: bottom }
+      ];
+    }
+
+    function normalizeNormalCropPoints() {
+      if (!cropState || cropState.mode !== 'normal' || cropState.points.length !== 4) return;
+      const xs = cropState.points.map(point => point.x);
+      const ys = cropState.points.map(point => point.y);
+      const r = cropState.imageRect;
+      const left = clamp(Math.min(...xs), r.x, r.x + r.w);
+      const right = clamp(Math.max(...xs), r.x, r.x + r.w);
+      const top = clamp(Math.min(...ys), r.y, r.y + r.h);
+      const bottom = clamp(Math.max(...ys), r.y, r.y + r.h);
+      cropState.points = [
+        { x: left, y: top },
+        { x: right, y: top },
+        { x: right, y: bottom },
+        { x: left, y: bottom }
+      ];
     }
 
     function endCropPoint() {
@@ -1061,6 +1168,7 @@
 
     function updateCropOverlay() {
       if (!cropState?.points.length) return;
+      normalizeNormalCropPoints();
       const p = cropState.points;
       cropPoints.forEach((button, index) => {
         button.style.left = `${p[index].x}px`;
@@ -1080,12 +1188,14 @@
       cropState = null;
       cropModal.classList.remove('show');
       cropModal.setAttribute('aria-hidden', 'true');
+      cropModal.removeAttribute('data-mode');
       document.body.classList.remove('modal-open');
     }
 
     function closeCrop() {
       if (isWorking) return;
       resetCropUi();
+      updateControls();
       setStatus(images.length ? 'Ready' : 'No images');
     }
 
@@ -1110,9 +1220,14 @@
       showBusy('Applying crop', 'Preparing...', 0);
 
       try {
-        const result = await perspectiveCropToBlob(sourceImage, item.width, item.height, points, 0, progress => {
-          updateBusy('Applying crop', `${Math.round(progress)}%`, progress);
-        });
+        const appliedMode = cropState.mode === 'perspective' ? 'perspective' : 'normal';
+        const result = appliedMode === 'perspective'
+          ? await perspectiveCropToBlob(sourceImage, item.width, item.height, points, 0, progress => {
+              updateBusy('Applying crop', `${Math.round(progress)}%`, progress);
+            })
+          : await normalCropToBlob(sourceImage, item.width, item.height, points, progress => {
+              updateBusy('Applying crop', `${Math.round(progress)}%`, progress);
+            });
 
         if (item.url) URL.revokeObjectURL(item.url);
         item.file = result.blob;
@@ -1123,13 +1238,14 @@
         item.loading = false;
         item.error = false;
         item.cropped = true;
+        item.cropMode = appliedMode;
         selectedId = item.id;
 
         resetCropUi();
         clearPdfUrl();
         applied = true;
         finalStatus = 'Crop applied';
-        showToast('Perspective crop applied');
+        showToast(appliedMode === 'perspective' ? 'Perspective crop applied' : 'Normal crop applied');
       } catch (error) {
         console.error(error);
         finalStatus = 'Crop failed';
@@ -1153,6 +1269,40 @@
         x: clamp(((point.x - r.x) / r.w) * item.width, 0, item.width),
         y: clamp(((point.y - r.y) / r.h) * item.height, 0, item.height)
       }));
+    }
+
+    async function normalCropToBlob(source, sourceWidth, sourceHeight, points, onProgress) {
+      const xs = points.map(point => point.x);
+      const ys = points.map(point => point.y);
+      const left = clamp(Math.min(...xs), 0, sourceWidth);
+      const right = clamp(Math.max(...xs), 0, sourceWidth);
+      const top = clamp(Math.min(...ys), 0, sourceHeight);
+      const bottom = clamp(Math.max(...ys), 0, sourceHeight);
+      const cropW = Math.max(1, Math.round(right - left));
+      const cropH = Math.max(1, Math.round(bottom - top));
+      const totalPixels = cropW * cropH;
+      let scale = totalPixels > MAX_CROP_PIXELS ? Math.sqrt(MAX_CROP_PIXELS / totalPixels) : 1;
+      const outputWidth = Math.max(1, Math.round(cropW * scale));
+      const outputHeight = Math.max(1, Math.round(cropH * scale));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = outputWidth;
+      canvas.height = outputHeight;
+      const ctx = canvas.getContext('2d', { alpha: false });
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, outputWidth, outputHeight);
+      if (onProgress) onProgress(35);
+      await frame();
+      ctx.drawImage(source, left, top, cropW, cropH, 0, 0, outputWidth, outputHeight);
+      if (onProgress) onProgress(92);
+      await frame();
+      const blob = await canvasToBlob(canvas, 'image/jpeg', JPEG_QUALITY);
+      canvas.width = 1;
+      canvas.height = 1;
+      if (onProgress) onProgress(100);
+      return { blob, width: outputWidth, height: outputHeight };
     }
 
     async function perspectiveCropToBlob(source, sourceWidth, sourceHeight, points, sharpnessAmount, onProgress) {
