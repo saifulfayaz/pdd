@@ -283,6 +283,8 @@
     .crop-hint { margin-top: 2px; font-size: 12px; color: var(--muted); }
     .crop-tools { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
     .crop-tools button { min-height: 36px; border-radius: 13px; padding: 8px 12px; font-size: 13px; }
+    .edge-detect-btn { background: var(--accent-soft); color: var(--accent); border-color: #c9d8ce; }
+    .crop-modal[data-mode="perspective"] .edge-detect-btn { display: none; }
     .crop-stage { margin: 12px; height: min(68dvh, 620px); min-height: 320px; border-radius: 23px; background: #111513; overflow: hidden; position: relative; border: 1px solid rgba(30,33,29,.14); touch-action: none; }
     .crop-hint-overlay { position: absolute; left: 14px; bottom: 12px; z-index: 2; color: rgba(255,255,255,.72); font-size: 12px; font-weight: 800; pointer-events: none; }
     .crop-img { position: absolute; left: 18px; top: 18px; width: 120px; height: 120px; transform: none; max-width: none; max-height: none; display: block; user-select: none; pointer-events: none; border-radius: 8px; box-shadow: 0 15px 50px rgba(0,0,0,.28); background: white; }
@@ -500,6 +502,7 @@
           <div class="crop-hint" id="cropHint">Move the rectangle corners, then apply</div>
         </div>
         <div class="crop-tools">
+          <button class="ghost edge-detect-btn" id="edgeDetectBtn" type="button" title="Automatically suggest a normal crop rectangle">Auto edge</button>
           <button class="ghost" id="cropResetBtn" type="button">Reset</button>
           <button class="ghost" id="cropCancelBtn" type="button">Cancel</button>
           <button class="primary" id="cropApplyBtn" type="button">Apply</button>
@@ -561,6 +564,7 @@
     const cropShade = document.getElementById('cropShade');
     const cropPoly = document.getElementById('cropPoly');
     const cropPoly2 = document.getElementById('cropPoly2');
+    const edgeDetectBtn = document.getElementById('edgeDetectBtn');
     const cropResetBtn = document.getElementById('cropResetBtn');
     const cropCancelBtn = document.getElementById('cropCancelBtn');
     const cropApplyBtn = document.getElementById('cropApplyBtn');
@@ -604,6 +608,7 @@
     cropResetBtn.addEventListener('click', resetCropPoints);
     cropCancelBtn.addEventListener('click', closeCrop);
     cropApplyBtn.addEventListener('click', applyCrop);
+    edgeDetectBtn.addEventListener('click', autoDetectNormalCrop);
     homeSharpnessButtons.forEach(button => {
       button.addEventListener('click', () => updateSelectedSharpness(Number(button.dataset.sharp) || 0));
     });
@@ -683,7 +688,9 @@
       cropModal.dataset.mode = isPerspective ? 'perspective' : 'normal';
       cropTitle.textContent = isPerspective ? 'Perspective crop' : 'Normal crop';
       cropHint.textContent = isPerspective ? 'Move each corner to correct tilted images' : 'Drag the rectangle corners to select the crop area';
-      cropHintOverlay.textContent = isPerspective ? 'Drag any numbered corner to correct perspective' : 'Drag a corner or tap inside the image to resize the rectangle';
+      cropHintOverlay.textContent = isPerspective ? 'Drag any numbered corner to correct perspective' : 'Drag a corner, tap inside the image, or use Auto edge';
+      edgeDetectBtn.hidden = isPerspective;
+      edgeDetectBtn.disabled = isPerspective || isWorking;
     }
 
     async function addFiles(files) {
@@ -791,6 +798,7 @@
       addMoreBtn.disabled = isWorking;
       sizeButtons.forEach(button => { button.disabled = isWorking; });
       cropModeButtons.forEach(button => { button.disabled = isWorking || cropModal.classList.contains('show'); });
+      edgeDetectBtn.disabled = isWorking || !cropState || cropState.mode !== 'normal';
       greyscaleToggle.disabled = isWorking;
       const selected = getSelectedImage();
       const sharpDisabled = isWorking || !selected || selected.loading || selected.error;
@@ -1001,6 +1009,7 @@
         }
         await frame();
         layoutCrop();
+        updateControls();
       } catch (error) {
         console.error(error);
         closeCrop();
@@ -1197,6 +1206,827 @@
       resetCropUi();
       updateControls();
       setStatus(images.length ? 'Ready' : 'No images');
+    }
+
+
+    async function autoDetectNormalCrop() {
+      if (!cropState || cropState.mode !== 'normal' || isWorking) return;
+      layoutCrop();
+      if (!cropState.sourceImage) {
+        try {
+          cropState.sourceImage = await loadImageFromUrl(cropState.item.url, false);
+        } catch (error) {
+          console.error(error);
+          setStatus('Cannot read image');
+          showToast('Cannot read image for edge detection.');
+          return;
+        }
+      }
+      if (!cropState.imageRect) layoutCrop();
+      if (!cropState.imageRect) {
+        setStatus('Crop view not ready');
+        showToast('Open crop again and try Auto edge.');
+        return;
+      }
+
+      setWorking(true);
+      edgeDetectBtn.disabled = true;
+      cropApplyBtn.disabled = true;
+      cropResetBtn.disabled = true;
+      cropCancelBtn.disabled = true;
+      setStatus('Detecting edges');
+      showBusy('Detecting edges', 'Scanning image...', 0);
+
+      try {
+        const bounds = await detectCropBounds(cropState.sourceImage, cropState.item.width, cropState.item.height, progress => {
+          updateBusy('Detecting edges', `${Math.round(progress)}%`, progress);
+        });
+
+        if (!bounds) {
+          setStatus('Edge not found');
+          showToast('Edge not found. Adjust crop manually.');
+          return;
+        }
+
+        setNormalCropFromSourceBounds(bounds);
+        updateCropOverlay();
+        if (bounds.weak) {
+          setStatus('Weak edge suggested');
+          showToast('Weak edge found — adjust manually if needed');
+        } else {
+          setStatus('Edges detected');
+          showToast('Edges detected — adjust if needed');
+        }
+      } catch (error) {
+        console.error(error);
+        setStatus('Edge detection failed');
+        showToast('Edge detection failed. Adjust crop manually.');
+      } finally {
+        hideBusy();
+        setWorking(false);
+        cropApplyBtn.disabled = false;
+        cropResetBtn.disabled = false;
+        cropCancelBtn.disabled = false;
+        edgeDetectBtn.disabled = !cropState || cropState.mode !== 'normal';
+      }
+    }
+
+    function setNormalCropFromSourceBounds(bounds) {
+      if (!cropState?.imageRect || cropState.mode !== 'normal') return;
+      const item = cropState.item;
+      const r = cropState.imageRect;
+      const padX = Math.min(item.width * 0.012, Math.max(2, item.width * 0.004));
+      const padY = Math.min(item.height * 0.012, Math.max(2, item.height * 0.004));
+      const left = clamp(bounds.left - padX, 0, item.width);
+      const right = clamp(bounds.right + padX, 0, item.width);
+      const top = clamp(bounds.top - padY, 0, item.height);
+      const bottom = clamp(bounds.bottom + padY, 0, item.height);
+      cropState.points = [
+        { x: r.x + (left / item.width) * r.w, y: r.y + (top / item.height) * r.h },
+        { x: r.x + (right / item.width) * r.w, y: r.y + (top / item.height) * r.h },
+        { x: r.x + (right / item.width) * r.w, y: r.y + (bottom / item.height) * r.h },
+        { x: r.x + (left / item.width) * r.w, y: r.y + (bottom / item.height) * r.h }
+      ];
+    }
+
+    async function detectCropBounds(source, sourceWidth, sourceHeight, onProgress) {
+      const maxSide = 1000;
+      const scale = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
+      const w = Math.max(40, Math.round(sourceWidth * scale));
+      const h = Math.max(40, Math.round(sourceHeight * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(source, 0, 0, w, h);
+      const image = ctx.getImageData(0, 0, w, h);
+      const data = image.data;
+      const gray = makeGrayscale(data, w, h);
+      if (onProgress) onProgress(8);
+      await frame();
+
+      const candidates = [];
+      const addCandidate = (type, bounds, weight = 1, weak = false) => {
+        if (!bounds) return;
+        const expanded = expandBounds(bounds, w, h, Math.max(2, Math.round(Math.min(w, h) * 0.006)));
+        if (isPlausibleBounds(expanded, w, h)) candidates.push({ ...expanded, type, weight, weak });
+      };
+
+      const background = estimateBorderColor(data, w, h, gray);
+
+      // 1) Multi-threshold foreground detection. This handles cards/documents on coloured or dark tables.
+      [0.55, 0.72, 0.9, 1.15, 1.45].forEach((factor, idx) => {
+        addCandidate('background', foregroundBoundsFromBackgroundFlexible(data, w, h, background, factor), 1.12 - idx * 0.03);
+      });
+      if (onProgress) onProgress(25);
+      await frame();
+
+      // 2) Largest connected foreground component. This prevents small text/noise from becoming the crop area.
+      [0.62, 0.82, 1.05].forEach((factor, idx) => {
+        addCandidate('component', largestForegroundComponentBoundsFlexible(data, w, h, background, factor), 1.22 - idx * 0.04);
+      });
+      if (onProgress) onProgress(44);
+      await frame();
+
+      // 3) Bright/dark object detection. Good for white documents on darker surfaces and dark slips on light surfaces.
+      addCandidate('bright', tonalObjectBounds(gray, w, h, 'bright'), 1.05);
+      addCandidate('dark', tonalObjectBounds(gray, w, h, 'dark'), 0.92);
+      if (onProgress) onProgress(58);
+      await frame();
+
+      // 4) Long edge/outline detection. Good when the document has a visible rectangular border or shadow.
+      const edgePeak = await edgePeakBounds(gray, w, h, progress => {
+        if (onProgress) onProgress(58 + progress * 0.20);
+      });
+      addCandidate('edge-peak', edgePeak, 1.18);
+      if (onProgress) onProgress(80);
+      await frame();
+
+      // 5) Older projection/contrast methods retained as fallback.
+      addCandidate('contrast', contrastTrimBounds(data, w, h, gray, background), 0.82);
+      const edge = await edgeProjectionBounds(data, w, h, gray, progress => {
+        if (onProgress) onProgress(80 + progress * 0.12);
+      });
+      addCandidate('edge', edge, 0.88);
+      if (onProgress) onProgress(95);
+      await frame();
+
+      let candidate = chooseBestBounds(candidates, w, h);
+
+      // If every method either failed or selected almost the full photo, show a visible safe crop.
+      // This makes the button testable while still letting the user adjust manually.
+      let weak = false;
+      if (!candidate || isAlmostFullBounds(candidate, w, h)) {
+        candidate = smartInsetFallbackBounds(w, h, candidates);
+        weak = true;
+      } else {
+        weak = !!candidate.weak;
+      }
+
+      canvas.width = 1;
+      canvas.height = 1;
+      if (!candidate) return null;
+
+      return {
+        left: clamp(candidate.left / scale, 0, sourceWidth),
+        top: clamp(candidate.top / scale, 0, sourceHeight),
+        right: clamp(candidate.right / scale, 0, sourceWidth),
+        bottom: clamp(candidate.bottom / scale, 0, sourceHeight),
+        weak
+      };
+    }
+
+    function makeGrayscale(data, w, h) {
+      const gray = new Uint8ClampedArray(w * h);
+      for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+        gray[p] = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) | 0;
+      }
+      return gray;
+    }
+
+
+    function foregroundBoundsFromBackgroundFlexible(data, w, h, background, factor = 1) {
+      const rows = new Float32Array(h);
+      const cols = new Float32Array(w);
+      const marginX = Math.max(1, Math.round(w * 0.008));
+      const marginY = Math.max(1, Math.round(h * 0.008));
+      const colorThreshold = Math.max(8, background.threshold * factor);
+      const lumThreshold = Math.max(7, background.lumThreshold * factor);
+      let hits = 0;
+
+      for (let y = marginY; y < h - marginY; y++) {
+        const rowOffset = y * w;
+        for (let x = marginX; x < w - marginX; x++) {
+          if (isForegroundFromBorderWithThreshold(data, rowOffset + x, background, colorThreshold, lumThreshold)) {
+            rows[y]++;
+            cols[x]++;
+            hits++;
+          }
+        }
+      }
+
+      const hitRatio = hits / Math.max(1, w * h);
+      if (hitRatio < 0.006 || hitRatio > 0.985) return null;
+      return boundsFromProjectionLoose(cols, rows, {
+        minColCount: Math.max(2, h * 0.006),
+        minRowCount: Math.max(2, w * 0.006),
+        runFraction: 0.0035
+      });
+    }
+
+    function largestForegroundComponentBoundsFlexible(data, w, h, background, factor = 1) {
+      const maxSide = 560;
+      const scale = Math.min(1, maxSide / Math.max(w, h));
+      const sw = Math.max(28, Math.round(w * scale));
+      const sh = Math.max(28, Math.round(h * scale));
+      const mask = new Uint8Array(sw * sh);
+      const colorThreshold = Math.max(8, background.threshold * factor);
+      const lumThreshold = Math.max(7, background.lumThreshold * factor);
+      let total = 0;
+
+      for (let y = 0; y < sh; y++) {
+        const srcY = Math.min(h - 1, Math.floor(y / scale));
+        for (let x = 0; x < sw; x++) {
+          const srcX = Math.min(w - 1, Math.floor(x / scale));
+          if (isForegroundFromBorderWithThreshold(data, srcY * w + srcX, background, colorThreshold, lumThreshold)) {
+            mask[y * sw + x] = 1;
+            total++;
+          }
+        }
+      }
+
+      const ratio = total / Math.max(1, sw * sh);
+      if (ratio < 0.006 || ratio > 0.985) return null;
+      closeMask(mask, sw, sh);
+      closeMask(mask, sw, sh);
+
+      const seen = new Uint8Array(sw * sh);
+      const queue = new Int32Array(sw * sh);
+      let bestScore = -Infinity;
+      let best = null;
+      const minArea = Math.max(35, sw * sh * 0.006);
+
+      for (let start = 0; start < mask.length; start++) {
+        if (!mask[start] || seen[start]) continue;
+        let head = 0, tail = 0;
+        queue[tail++] = start;
+        seen[start] = 1;
+        let area = 0;
+        let left = sw, right = 0, top = sh, bottom = 0;
+
+        while (head < tail) {
+          const p = queue[head++];
+          const x = p % sw;
+          const y = (p / sw) | 0;
+          area++;
+          if (x < left) left = x;
+          if (x > right) right = x;
+          if (y < top) top = y;
+          if (y > bottom) bottom = y;
+
+          const n0 = p - 1, n1 = p + 1, n2 = p - sw, n3 = p + sw;
+          if (x > 0 && mask[n0] && !seen[n0]) { seen[n0] = 1; queue[tail++] = n0; }
+          if (x < sw - 1 && mask[n1] && !seen[n1]) { seen[n1] = 1; queue[tail++] = n1; }
+          if (y > 0 && mask[n2] && !seen[n2]) { seen[n2] = 1; queue[tail++] = n2; }
+          if (y < sh - 1 && mask[n3] && !seen[n3]) { seen[n3] = 1; queue[tail++] = n3; }
+        }
+
+        if (area < minArea) continue;
+        const bw = right - left + 1;
+        const bh = bottom - top + 1;
+        const areaRatio = (bw * bh) / Math.max(1, sw * sh);
+        const centerPenalty = Math.hypot(((left + right) / 2 / sw) - 0.5, ((top + bottom) / 2 / sh) - 0.5);
+        const score = areaRatio * 1.1 + (area / Math.max(1, sw * sh)) * 0.9 - centerPenalty * 0.35;
+        if (score > bestScore) {
+          bestScore = score;
+          best = { left, top, right: right + 1, bottom: bottom + 1 };
+        }
+      }
+
+      if (!best) return null;
+      return {
+        left: clamp(best.left / scale, 0, w),
+        top: clamp(best.top / scale, 0, h),
+        right: clamp(best.right / scale, 0, w),
+        bottom: clamp(best.bottom / scale, 0, h)
+      };
+    }
+
+    function tonalObjectBounds(gray, w, h, mode) {
+      const sample = [];
+      const step = Math.max(2, Math.floor(Math.min(w, h) / 420));
+      for (let y = 0; y < h; y += step) {
+        for (let x = 0; x < w; x += step) sample.push(gray[y * w + x]);
+      }
+      sample.sort((a, b) => a - b);
+      const p10 = percentileSorted(sample, 0.10);
+      const p35 = percentileSorted(sample, 0.35);
+      const p65 = percentileSorted(sample, 0.65);
+      const p90 = percentileSorted(sample, 0.90);
+      const contrast = p90 - p10;
+      if (contrast < 18) return null;
+
+      const threshold = mode === 'bright'
+        ? Math.max(135, p65 + contrast * 0.10)
+        : Math.min(125, p35 - contrast * 0.10);
+      const rows = new Float32Array(h);
+      const cols = new Float32Array(w);
+      let hits = 0;
+      const marginX = Math.max(1, Math.round(w * 0.01));
+      const marginY = Math.max(1, Math.round(h * 0.01));
+
+      for (let y = marginY; y < h - marginY; y += step) {
+        for (let x = marginX; x < w - marginX; x += step) {
+          const value = gray[y * w + x];
+          const ok = mode === 'bright' ? value >= threshold : value <= threshold;
+          if (ok) {
+            rows[y]++;
+            cols[x]++;
+            hits++;
+          }
+        }
+      }
+      const ratio = hits / Math.max(1, (w / step) * (h / step));
+      if (ratio < 0.015 || ratio > 0.92) return null;
+      return boundsFromProjectionLoose(cols, rows, {
+        minColCount: Math.max(2, (h / step) * 0.008),
+        minRowCount: Math.max(2, (w / step) * 0.008),
+        runFraction: 0.003
+      });
+    }
+
+    async function edgePeakBounds(gray, w, h, onProgress) {
+      const cols = new Float32Array(w);
+      const rows = new Float32Array(h);
+      const step = Math.max(1, Math.floor(Math.min(w, h) / 760));
+      const yStart = Math.max(2, Math.round(h * 0.018));
+      const yEnd = Math.min(h - 2, Math.round(h * 0.982));
+      const xStart = Math.max(2, Math.round(w * 0.018));
+      const xEnd = Math.min(w - 2, Math.round(w * 0.982));
+      const chunk = Math.max(14, Math.floor((yEnd - yStart) / 18));
+
+      for (let y = yStart; y < yEnd; y += step) {
+        for (let x = xStart; x < xEnd; x += step) {
+          const mag = sobelMagnitude(gray, w, x, y);
+          if (mag > 18) {
+            const weight = Math.min(8, mag / 34);
+            cols[x] += weight;
+            rows[y] += weight;
+          }
+        }
+        if (y % chunk === 0) {
+          if (onProgress) onProgress(((y - yStart) / Math.max(1, yEnd - yStart)) * 100);
+          await frame();
+        }
+      }
+
+      const c = smoothProjection(cols, Math.max(2, Math.round(w * 0.01)));
+      const r = smoothProjection(rows, Math.max(2, Math.round(h * 0.01)));
+      const left = strongestBoundaryPeak(c, 0.02, 0.48, 1);
+      const right = strongestBoundaryPeak(c, 0.52, 0.98, -1);
+      const top = strongestBoundaryPeak(r, 0.02, 0.48, 1);
+      const bottom = strongestBoundaryPeak(r, 0.52, 0.98, -1);
+      if (left < 0 || right < 0 || top < 0 || bottom < 0 || right <= left || bottom <= top) return null;
+      const bounds = { left, top, right, bottom };
+      if (!isPlausibleBounds(bounds, w, h)) return null;
+      return bounds;
+    }
+
+    function strongestBoundaryPeak(values, startFraction, endFraction, direction) {
+      const start = clamp(Math.round(values.length * startFraction), 0, values.length - 1);
+      const end = clamp(Math.round(values.length * endFraction), 0, values.length - 1);
+      let max = 0;
+      const nonZero = [];
+      for (let i = 0; i < values.length; i++) {
+        const value = values[i];
+        if (value > max) max = value;
+        if (value > 0) nonZero.push(value);
+      }
+      if (!max || !nonZero.length) return -1;
+      nonZero.sort((a, b) => a - b);
+      const threshold = Math.max(percentileSorted(nonZero, 0.78), max * 0.13);
+      let best = -1;
+      let bestScore = -Infinity;
+      const rangeStart = Math.min(start, end);
+      const rangeEnd = Math.max(start, end);
+      for (let i = rangeStart; i <= rangeEnd; i++) {
+        const value = values[i];
+        if (value < threshold) continue;
+        const edgePreference = direction > 0 ? 1 - (i - rangeStart) / Math.max(1, rangeEnd - rangeStart) : (i - rangeStart) / Math.max(1, rangeEnd - rangeStart);
+        const score = value * (0.75 + edgePreference * 0.25);
+        if (score > bestScore) {
+          bestScore = score;
+          best = i;
+        }
+      }
+      return best;
+    }
+
+    function boundsFromProjectionLoose(cols, rows, options = {}) {
+      const left = projectionCutIndex(cols, options.minColCount || 2, 1, options.runFraction || 0.004);
+      const right = projectionCutIndex(cols, options.minColCount || 2, -1, options.runFraction || 0.004);
+      const top = projectionCutIndex(rows, options.minRowCount || 2, 1, options.runFraction || 0.004);
+      const bottom = projectionCutIndex(rows, options.minRowCount || 2, -1, options.runFraction || 0.004);
+      if (left < 0 || right < 0 || top < 0 || bottom < 0 || right <= left || bottom <= top) return null;
+      return { left, top, right, bottom };
+    }
+
+    function projectionCutIndex(values, minCount, direction, runFraction) {
+      let max = 0;
+      const nonZero = [];
+      for (let i = 0; i < values.length; i++) {
+        const value = values[i];
+        if (value > max) max = value;
+        if (value > 0) nonZero.push(value);
+      }
+      if (!max || !nonZero.length) return -1;
+      nonZero.sort((a, b) => a - b);
+      const threshold = Math.max(minCount, max * 0.035, percentileSorted(nonZero, 0.45) * 0.35);
+      return sustainedProjectionIndex(values, threshold, direction, runFraction);
+    }
+
+    function isForegroundFromBorderWithThreshold(data, pixelIndex, background, colorThreshold, lumThreshold) {
+      const i = pixelIndex * 4;
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const lum = r * 0.299 + g * 0.587 + b * 0.114;
+      const colorDiff = colorDistance(r, g, b, background.r, background.g, background.b);
+      const lumDiff = Math.abs(lum - background.lum);
+      return colorDiff > colorThreshold || lumDiff > lumThreshold;
+    }
+
+    function isAlmostFullBounds(bounds, w, h) {
+      if (!bounds) return false;
+      const insetX = Math.min(bounds.left, w - bounds.right);
+      const insetY = Math.min(bounds.top, h - bounds.bottom);
+      const bw = bounds.right - bounds.left;
+      const bh = bounds.bottom - bounds.top;
+      const areaRatio = (bw * bh) / Math.max(1, w * h);
+      return areaRatio > 0.965 || (insetX < w * 0.012 && insetY < h * 0.012 && areaRatio > 0.92);
+    }
+
+    function smartInsetFallbackBounds(w, h, candidates) {
+      const usable = (candidates || []).filter(c => c && !isAlmostFullBounds(c, w, h));
+      if (usable.length) return chooseBestBounds(usable, w, h);
+      const insetX = Math.round(w * 0.06);
+      const insetY = Math.round(h * 0.06);
+      return { left: insetX, top: insetY, right: w - insetX, bottom: h - insetY, type: 'fallback', weight: 0.25, weak: true };
+    }
+
+    function estimateBorderColor(data, w, h, gray) {
+      const border = Math.max(4, Math.round(Math.min(w, h) * 0.055));
+      const step = Math.max(1, Math.floor(Math.min(w, h) / 280));
+      const rs = [], gs = [], bs = [], ls = [];
+
+      for (let y = 0; y < h; y += step) {
+        for (let x = 0; x < w; x += step) {
+          if (x > border && x < w - border && y > border && y < h - border) continue;
+          const i = (y * w + x) * 4;
+          rs.push(data[i]);
+          gs.push(data[i + 1]);
+          bs.push(data[i + 2]);
+          ls.push(gray[y * w + x]);
+        }
+      }
+
+      const r = medianNumber(rs);
+      const g = medianNumber(gs);
+      const b = medianNumber(bs);
+      const lum = medianNumber(ls);
+      let colorMean = 0, colorSq = 0, lumMean = 0, lumSq = 0, count = 0;
+
+      for (let y = 0; y < h; y += step) {
+        for (let x = 0; x < w; x += step) {
+          if (x > border && x < w - border && y > border && y < h - border) continue;
+          const i = (y * w + x) * 4;
+          const cd = colorDistance(data[i], data[i + 1], data[i + 2], r, g, b);
+          const ld = Math.abs(gray[y * w + x] - lum);
+          colorMean += cd;
+          colorSq += cd * cd;
+          lumMean += ld;
+          lumSq += ld * ld;
+          count++;
+        }
+      }
+
+      colorMean /= count || 1;
+      lumMean /= count || 1;
+      const colorStd = Math.sqrt(Math.max(0, colorSq / (count || 1) - colorMean * colorMean));
+      const lumStd = Math.sqrt(Math.max(0, lumSq / (count || 1) - lumMean * lumMean));
+      return {
+        r,
+        g,
+        b,
+        lum,
+        threshold: clamp(colorMean + colorStd * 2.15 + 9, 18, 72),
+        lumThreshold: clamp(lumMean + lumStd * 2.05 + 7, 14, 58)
+      };
+    }
+
+    function foregroundBoundsFromBackground(data, w, h, background) {
+      const rows = new Float32Array(h);
+      const cols = new Float32Array(w);
+      const marginX = Math.max(1, Math.round(w * 0.006));
+      const marginY = Math.max(1, Math.round(h * 0.006));
+      let hits = 0;
+
+      for (let y = marginY; y < h - marginY; y++) {
+        const rowOffset = y * w;
+        for (let x = marginX; x < w - marginX; x++) {
+          if (isForegroundFromBorder(data, rowOffset + x, background)) {
+            rows[y]++;
+            cols[x]++;
+            hits++;
+          }
+        }
+      }
+
+      if (hits < w * h * 0.012) return null;
+      return boundsFromProjection(cols, rows, {
+        minColCount: Math.max(3, h * 0.010),
+        minRowCount: Math.max(3, w * 0.010),
+        runFraction: 0.005
+      });
+    }
+
+    function largestForegroundComponentBounds(data, w, h, background) {
+      const maxSide = 520;
+      const factor = Math.min(1, maxSide / Math.max(w, h));
+      const sw = Math.max(24, Math.round(w * factor));
+      const sh = Math.max(24, Math.round(h * factor));
+      const mask = new Uint8Array(sw * sh);
+      let total = 0;
+
+      for (let y = 0; y < sh; y++) {
+        const srcY = Math.min(h - 1, Math.floor(y / factor));
+        for (let x = 0; x < sw; x++) {
+          const srcX = Math.min(w - 1, Math.floor(x / factor));
+          if (isForegroundFromBorder(data, srcY * w + srcX, background)) {
+            mask[y * sw + x] = 1;
+            total++;
+          }
+        }
+      }
+
+      if (total < sw * sh * 0.012) return null;
+      closeMask(mask, sw, sh);
+
+      const seen = new Uint8Array(sw * sh);
+      const queue = new Int32Array(sw * sh);
+      let bestArea = 0;
+      let best = null;
+      const minArea = Math.max(40, sw * sh * 0.012);
+
+      for (let start = 0; start < mask.length; start++) {
+        if (!mask[start] || seen[start]) continue;
+        let head = 0, tail = 0;
+        queue[tail++] = start;
+        seen[start] = 1;
+        let area = 0;
+        let left = sw, right = 0, top = sh, bottom = 0;
+
+        while (head < tail) {
+          const p = queue[head++];
+          const x = p % sw;
+          const y = (p / sw) | 0;
+          area++;
+          if (x < left) left = x;
+          if (x > right) right = x;
+          if (y < top) top = y;
+          if (y > bottom) bottom = y;
+
+          const n0 = p - 1, n1 = p + 1, n2 = p - sw, n3 = p + sw;
+          if (x > 0 && mask[n0] && !seen[n0]) { seen[n0] = 1; queue[tail++] = n0; }
+          if (x < sw - 1 && mask[n1] && !seen[n1]) { seen[n1] = 1; queue[tail++] = n1; }
+          if (y > 0 && mask[n2] && !seen[n2]) { seen[n2] = 1; queue[tail++] = n2; }
+          if (y < sh - 1 && mask[n3] && !seen[n3]) { seen[n3] = 1; queue[tail++] = n3; }
+        }
+
+        if (area >= minArea && area > bestArea) {
+          bestArea = area;
+          best = { left, top, right: right + 1, bottom: bottom + 1 };
+        }
+      }
+
+      if (!best) return null;
+      return {
+        left: clamp(best.left / factor, 0, w),
+        top: clamp(best.top / factor, 0, h),
+        right: clamp(best.right / factor, 0, w),
+        bottom: clamp(best.bottom / factor, 0, h)
+      };
+    }
+
+    function contrastTrimBounds(data, w, h, gray, background) {
+      const rows = new Float32Array(h);
+      const cols = new Float32Array(w);
+      const step = Math.max(1, Math.floor(Math.min(w, h) / 900));
+      const sample = [];
+      for (let y = 0; y < h; y += Math.max(3, step * 8)) {
+        for (let x = 0; x < w; x += Math.max(3, step * 8)) sample.push(gray[y * w + x]);
+      }
+      sample.sort((a, b) => a - b);
+      const low = percentileSorted(sample, 0.12);
+      const high = percentileSorted(sample, 0.88);
+      const minDelta = Math.max(14, (high - low) * 0.16, background.lumThreshold * 0.7);
+      let hits = 0;
+
+      for (let y = 1; y < h - 1; y += step) {
+        for (let x = 1; x < w - 1; x += step) {
+          const i = y * w + x;
+          const lumDiff = Math.abs(gray[i] - background.lum);
+          const local = Math.abs(gray[i] - gray[i - 1]) + Math.abs(gray[i] - gray[i + 1]) + Math.abs(gray[i] - gray[i - w]) + Math.abs(gray[i] - gray[i + w]);
+          if (lumDiff > minDelta || local > 70) {
+            rows[y]++;
+            cols[x]++;
+            hits++;
+          }
+        }
+      }
+      if (hits < (w / step) * (h / step) * 0.008) return null;
+      return boundsFromProjection(cols, rows, {
+        minColCount: Math.max(2, (h / step) * 0.006),
+        minRowCount: Math.max(2, (w / step) * 0.006),
+        runFraction: 0.004
+      });
+    }
+
+    async function edgeProjectionBounds(data, w, h, gray, onProgress) {
+      const sample = [];
+      const sampleStep = Math.max(2, Math.floor(Math.min(w, h) / 360));
+      for (let y = 2; y < h - 2; y += sampleStep) {
+        for (let x = 2; x < w - 2; x += sampleStep) sample.push(sobelMagnitude(gray, w, x, y));
+      }
+      sample.sort((a, b) => a - b);
+      const threshold = clamp(percentileSorted(sample, 0.83), 24, 150);
+
+      const rows = new Float32Array(h);
+      const cols = new Float32Array(w);
+      const yStart = Math.max(1, Math.round(h * 0.008));
+      const yEnd = Math.min(h - 1, Math.round(h * 0.992));
+      const xStart = Math.max(1, Math.round(w * 0.008));
+      const xEnd = Math.min(w - 1, Math.round(w * 0.992));
+      const rowChunk = Math.max(16, Math.floor((yEnd - yStart) / 22));
+
+      for (let y = yStart; y < yEnd; y++) {
+        for (let x = xStart; x < xEnd; x++) {
+          const mag = sobelMagnitude(gray, w, x, y);
+          if (mag >= threshold) {
+            const weight = Math.min(4, 1 + (mag - threshold) / Math.max(1, threshold));
+            rows[y] += weight;
+            cols[x] += weight;
+          }
+        }
+        if (y % rowChunk === 0) {
+          if (onProgress) onProgress(((y - yStart) / Math.max(1, yEnd - yStart)) * 100);
+          await frame();
+        }
+      }
+
+      const smoothedCols = smoothProjection(cols, Math.max(2, Math.round(w * 0.008)));
+      const smoothedRows = smoothProjection(rows, Math.max(2, Math.round(h * 0.008)));
+      return boundsFromProjection(smoothedCols, smoothedRows, {
+        minColCount: Math.max(3, h * 0.006),
+        minRowCount: Math.max(3, w * 0.006),
+        runFraction: 0.004
+      });
+    }
+
+    function isForegroundFromBorder(data, pixelIndex, background) {
+      const i = pixelIndex * 4;
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const lum = r * 0.299 + g * 0.587 + b * 0.114;
+      const colorDiff = colorDistance(r, g, b, background.r, background.g, background.b);
+      const lumDiff = Math.abs(lum - background.lum);
+      return colorDiff > background.threshold || lumDiff > background.lumThreshold;
+    }
+
+    function closeMask(mask, w, h) {
+      const copy = mask.slice();
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          const i = y * w + x;
+          if (copy[i]) continue;
+          const neighbours = copy[i - 1] + copy[i + 1] + copy[i - w] + copy[i + w] + copy[i - w - 1] + copy[i - w + 1] + copy[i + w - 1] + copy[i + w + 1];
+          if (neighbours >= 5) mask[i] = 1;
+        }
+      }
+    }
+
+    function sobelMagnitude(gray, w, x, y) {
+      const i = y * w + x;
+      const a = gray[i - w - 1], b = gray[i - w], c = gray[i - w + 1];
+      const d = gray[i - 1], f = gray[i + 1];
+      const g = gray[i + w - 1], h = gray[i + w], k = gray[i + w + 1];
+      const gx = -a - 2 * d - g + c + 2 * f + k;
+      const gy = -a - 2 * b - c + g + 2 * h + k;
+      return Math.abs(gx) + Math.abs(gy);
+    }
+
+    function smoothProjection(values, radius) {
+      const out = new Float32Array(values.length);
+      let sum = 0;
+      for (let i = 0; i < values.length; i++) {
+        sum += values[i];
+        if (i - radius - 1 >= 0) sum -= values[i - radius - 1];
+        const left = Math.max(0, i - radius);
+        const right = i;
+        out[i] = sum / Math.max(1, right - left + 1);
+      }
+      return out;
+    }
+
+    function boundsFromProjection(cols, rows, options = {}) {
+      const colThreshold = projectionThreshold(cols, options.minColCount || 2);
+      const rowThreshold = projectionThreshold(rows, options.minRowCount || 2);
+      const left = sustainedProjectionIndex(cols, colThreshold, 1, options.runFraction || 0.005);
+      const right = sustainedProjectionIndex(cols, colThreshold, -1, options.runFraction || 0.005);
+      const top = sustainedProjectionIndex(rows, rowThreshold, 1, options.runFraction || 0.005);
+      const bottom = sustainedProjectionIndex(rows, rowThreshold, -1, options.runFraction || 0.005);
+      if (left < 0 || right < 0 || top < 0 || bottom < 0 || right <= left || bottom <= top) return null;
+      return { left, top, right, bottom };
+    }
+
+    function projectionThreshold(values, minCount) {
+      let max = 0;
+      const nonZero = [];
+      for (let i = 0; i < values.length; i++) {
+        const value = values[i];
+        if (value > max) max = value;
+        if (value > 0) nonZero.push(value);
+      }
+      if (!max || !nonZero.length) return Infinity;
+      nonZero.sort((a, b) => a - b);
+      const p70 = percentileSorted(nonZero, 0.70);
+      return Math.max(minCount, max * 0.075, p70 * 0.34);
+    }
+
+    function sustainedProjectionIndex(values, threshold, direction, runFraction) {
+      if (!Number.isFinite(threshold)) return -1;
+      const run = Math.max(2, Math.round(values.length * runFraction));
+      if (direction > 0) {
+        let streak = 0;
+        for (let i = 0; i < values.length; i++) {
+          streak = values[i] >= threshold ? streak + 1 : 0;
+          if (streak >= run) return i - run + 1;
+        }
+      } else {
+        let streak = 0;
+        for (let i = values.length - 1; i >= 0; i--) {
+          streak = values[i] >= threshold ? streak + 1 : 0;
+          if (streak >= run) return i + run - 1;
+        }
+      }
+      return firstProjectionIndex(values, threshold, direction);
+    }
+
+    function firstProjectionIndex(values, minCount, direction) {
+      if (direction > 0) {
+        for (let i = 0; i < values.length; i++) if (values[i] >= minCount) return i;
+      } else {
+        for (let i = values.length - 1; i >= 0; i--) if (values[i] >= minCount) return i;
+      }
+      return -1;
+    }
+
+    function chooseBestBounds(candidates, w, h) {
+      const valid = candidates.filter(bounds => bounds && isPlausibleBounds(bounds, w, h));
+      if (!valid.length) return null;
+      valid.sort((a, b) => boundsScore(b, w, h) - boundsScore(a, w, h));
+      return valid[0];
+    }
+
+    function boundsScore(bounds, w, h) {
+      const bw = bounds.right - bounds.left;
+      const bh = bounds.bottom - bounds.top;
+      const areaRatio = (bw * bh) / (w * h);
+      const centerX = (bounds.left + bounds.right) / 2 / w;
+      const centerY = (bounds.top + bounds.bottom) / 2 / h;
+      const aspect = bw / Math.max(1, bh);
+      const centerPenalty = Math.hypot(centerX - 0.5, centerY - 0.5) * 0.34;
+      const tooSmallPenalty = areaRatio < 0.18 ? (0.18 - areaRatio) * 0.72 : 0;
+      const tooLargePenalty = areaRatio > 0.94 ? (areaRatio - 0.94) * 0.30 : 0;
+      const aspectPenalty = aspect < 0.18 || aspect > 5.5 ? 0.45 : 0;
+      const edgeBonus = bounds.type === 'component' ? 0.08 : bounds.type === 'background' ? 0.04 : 0;
+      return areaRatio * 0.72 + (bounds.weight || 1) * 0.11 + edgeBonus - centerPenalty - tooSmallPenalty - tooLargePenalty - aspectPenalty;
+    }
+
+    function expandBounds(bounds, w, h, pad) {
+      return {
+        left: clamp(bounds.left - pad, 0, w),
+        top: clamp(bounds.top - pad, 0, h),
+        right: clamp(bounds.right + pad, 0, w),
+        bottom: clamp(bounds.bottom + pad, 0, h)
+      };
+    }
+
+    function isPlausibleBounds(bounds, w, h) {
+      const bw = bounds.right - bounds.left;
+      const bh = bounds.bottom - bounds.top;
+      if (bw < w * 0.10 || bh < h * 0.10) return false;
+      const areaRatio = (bw * bh) / (w * h);
+      if (areaRatio < 0.025 || areaRatio > 1.01) return false;
+      return Number.isFinite(areaRatio);
+    }
+
+    function medianNumber(values) {
+      if (!values.length) return 0;
+      values.sort((a, b) => a - b);
+      return percentileSorted(values, 0.5);
+    }
+
+    function percentileSorted(values, fraction) {
+      if (!values.length) return 0;
+      const index = clamp(Math.round((values.length - 1) * fraction), 0, values.length - 1);
+      return values[index];
+    }
+
+    function colorDistance(r1, g1, b1, r2, g2, b2) {
+      const dr = r1 - r2;
+      const dg = g1 - g2;
+      const db = b1 - b2;
+      return Math.sqrt(dr * dr * 0.42 + dg * dg * 0.46 + db * db * 0.28);
     }
 
     async function applyCrop() {
