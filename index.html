@@ -2986,6 +2986,7 @@
         setStatus('PDF failed');
         showToast('PDF creation failed');
       } finally {
+        hideBusy();
         setWorking(false);
         setTimeout(() => updateProgress(0), 700);
       }
@@ -3305,6 +3306,7 @@
 
     function showBusy(title, text, percent) {
       busyBox.classList.add('show');
+      busyBox.setAttribute('aria-hidden', 'false');
       updateBusy(title, text, percent);
       miniStatus.classList.add('busy-inline');
     }
@@ -3318,6 +3320,7 @@
 
     function hideBusy() {
       busyBox.classList.remove('show');
+      busyBox.setAttribute('aria-hidden', 'true');
       busyBar.style.width = '0%';
       miniStatus.classList.remove('busy-inline');
     }
