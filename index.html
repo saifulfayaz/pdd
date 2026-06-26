@@ -170,7 +170,7 @@
     .drop small { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; }
     input[type=file] { display: none; }
 
-    .size-box, .effect-box, .crop-mode-box, .sharp-home, .status-card {
+    .size-box, .effect-box, .crop-mode-box, .sharp-home, .shadow-home, .status-card {
       margin-top: 0;
       padding: 10px;
       border: 1px solid var(--line);
@@ -299,7 +299,7 @@
     .meta { padding: 8px; min-width: 0; }
     .name { font-size: 12px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.25; }
     .dim { margin-top: 3px; font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .tile-actions { display: grid; grid-template-columns: 1fr 34px; gap: 6px; margin-top: 7px; }
+    .tile-actions { display: grid; grid-template-columns: 1fr 1fr 34px; gap: 6px; margin-top: 7px; }
     .tile-actions button { min-height: 31px; padding: 6px 5px; border-radius: 12px; font-size: 12px; background: var(--surface-2); color: var(--text); border: 1px solid var(--line); box-shadow: none; }
     .tile-actions .remove { background: var(--danger-soft); color: var(--danger); border-color: #efd2cc; }
 
@@ -352,6 +352,22 @@
     @keyframes pulse { 50% { transform: scale(1.45); opacity: .55; } }
     @keyframes successFlash { 0%, 100% { background: var(--accent); box-shadow: 0 0 0 4px rgba(49,88,70,.11); } 50% { background: #2d9e5a; box-shadow: 0 0 0 6px rgba(45,158,90,.22); } }
     .success-inline .dot { animation: successFlash .6s ease 3; }
+
+    .shadow-home-label { color: var(--muted); font-size: 11.5px; font-weight: 850; line-height: 1.35; }
+    .tile-actions .shadow-toggle.active { background: var(--accent-soft); color: var(--accent); border-color: #c9d8ce; }
+    .tile.has-shadow .page-num::before { content: '✦ '; font-weight: 900; }
+    .tile.shadow-working .preview::after {
+      content: 'Cleaning';
+      position: absolute;
+      right: 7px;
+      bottom: 7px;
+      border-radius: 999px;
+      padding: 3px 7px;
+      background: rgba(24,32,27,.88);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 900;
+    }
 
 
 
@@ -420,7 +436,7 @@
       .controls { position: static; padding: 10px; grid-template-columns: 1fr; }
       .drop { min-height: 88px; border-radius: 20px; }
       .drop-icon { width: 36px; height: 36px; margin-bottom: 5px; font-size: 21px; }
-      .size-box, .effect-box, .crop-mode-box, .sharp-home, .status-card { border-radius: 18px; padding: 9px; }
+      .size-box, .effect-box, .crop-mode-box, .sharp-home, .shadow-home, .status-card { border-radius: 18px; padding: 9px; }
       .size-options { grid-template-columns: repeat(2, 1fr); }
       .list-panel { min-height: 350px; }
       .image-list { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); padding: 10px; gap: 9px; }
@@ -433,6 +449,371 @@
       .crop-tools button { flex: 1; }
       .crop-stage { height: 64dvh; min-height: 285px; margin: 9px; border-radius: 20px; }
       .crop-point { width: 52px; height: 52px; margin-left: -26px; margin-top: -26px; font-size: 15px; }
+    }
+
+
+
+    /* Clean desktop split layout — compact, aesthetic, no page scrolling */
+    :root {
+      --bg: #f5f3ee;
+      --surface: #fffdf8;
+      --surface-2: #f7f3eb;
+      --surface-3: #eee7dc;
+      --text: #1c221d;
+      --muted: #727768;
+      --line: #e0d8ca;
+      --line-strong: #cbbfad;
+      --accent: #27513f;
+      --accent-2: #62806a;
+      --accent-soft: #e8f0e7;
+      --danger: #a64239;
+      --danger-soft: #fff1ef;
+      --shadow: 0 18px 46px rgba(45, 39, 29, .08);
+      --shadow-soft: 0 10px 26px rgba(45, 39, 29, .07);
+      --radius: 22px;
+    }
+
+    @media (min-width: 901px) {
+      html, body {
+        height: 100%;
+        overflow: hidden;
+      }
+
+      body {
+        min-height: 100dvh;
+        background:
+          radial-gradient(circle at 0% -18%, rgba(44, 84, 65, .18), transparent 34rem),
+          radial-gradient(circle at 100% -24%, rgba(224, 205, 166, .34), transparent 36rem),
+          linear-gradient(180deg, #fcfbf6 0%, #f4f1ea 100%);
+      }
+
+      .app {
+        width: min(1380px, calc(100% - 22px));
+        height: 100dvh;
+        margin: 0 auto;
+        padding: 10px 0;
+        display: grid;
+        grid-template-rows: 48px minmax(0, 1fr);
+        gap: 10px;
+      }
+
+      .top {
+        height: 48px;
+        margin: 0;
+        padding: 7px 10px;
+        border: 1px solid rgba(224, 216, 202, .9);
+        border-radius: 20px;
+        background: rgba(255, 253, 248, .78);
+        box-shadow: 0 10px 28px rgba(45, 39, 29, .055);
+        backdrop-filter: blur(14px);
+      }
+
+      .brand { gap: 10px; }
+      .logo {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        font-size: 11px;
+        box-shadow: 0 10px 20px rgba(39, 81, 63, .17);
+      }
+      h1 { font-size: 22px; letter-spacing: -.06em; }
+      .tagline { display: none; }
+      .tool-link, .privacy-badge {
+        min-height: 31px;
+        padding: 6px 10px;
+        border-radius: 13px;
+        background: rgba(255,255,255,.68);
+        font-size: 11.5px;
+      }
+
+      .workspace {
+        min-height: 0;
+        height: 100%;
+        display: grid;
+        grid-template-columns: 286px minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr);
+        gap: 10px;
+        align-items: stretch;
+      }
+
+      .panel {
+        border-radius: 22px;
+        background: rgba(255, 253, 248, .84);
+        border: 1px solid rgba(224, 216, 202, .95);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(16px);
+      }
+
+      .controls {
+        position: static;
+        top: auto;
+        height: 100%;
+        min-height: 0;
+        padding: 10px;
+        display: grid;
+        grid-template-columns: 1fr;
+        grid-template-rows: 72px 90px 66px 76px 84px 58px 82px 48px;
+        gap: 7px;
+        overflow: hidden;
+      }
+
+      .drop {
+        min-height: 0;
+        height: 100%;
+        border-radius: 17px;
+        border-color: #c8d1c5;
+        background:
+          linear-gradient(180deg, rgba(255,255,255,.88), rgba(247,243,235,.94));
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.35);
+      }
+      .drop-icon {
+        width: 30px;
+        height: 30px;
+        margin-bottom: 4px;
+        border-radius: 11px;
+        font-size: 18px;
+      }
+      .drop strong { font-size: 13px; }
+      .drop small { font-size: 10.5px; margin-top: 1px; }
+
+      .size-box, .effect-box, .crop-mode-box, .sharp-home, .shadow-home, .status-card {
+        min-height: 0;
+        padding: 8px;
+        border-radius: 17px;
+        background: rgba(250, 247, 240, .88);
+        border-color: rgba(224, 216, 202, .95);
+      }
+
+      .size-label {
+        margin: 0 0 6px;
+        font-size: 10.5px;
+        letter-spacing: .045em;
+        text-transform: uppercase;
+      }
+      .size-options {
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+      }
+      .size-option {
+        min-height: 28px;
+        padding: 5px 6px;
+        border-radius: 12px;
+        font-size: 11.5px;
+        background: rgba(255,255,255,.62);
+      }
+      .size-option.active, .sharp-step.active, .crop-mode-option.active {
+        background: linear-gradient(135deg, #203f31, #315f4a);
+        color: #fff;
+        border-color: transparent;
+        box-shadow: 0 8px 18px rgba(39,81,63,.15);
+      }
+
+      .effect-row {
+        height: 100%;
+        gap: 8px;
+      }
+      .effect-label, .sharp-home-title {
+        font-size: 12.5px;
+        line-height: 1.05;
+      }
+      .effect-sub, .shadow-home-label {
+        margin-top: 3px;
+        font-size: 10.5px;
+        line-height: 1.18;
+      }
+      .switch {
+        width: 43px;
+        height: 26px;
+      }
+      .switch-ui::after {
+        width: 18px;
+        height: 18px;
+      }
+      .switch input:checked + .switch-ui::after { transform: translateX(17px); }
+
+      .crop-mode-options {
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+      }
+      .crop-mode-option {
+        min-height: 42px;
+        padding: 7px 4px;
+        border-radius: 12px;
+        font-size: 11.5px;
+        line-height: 1.05;
+        background: rgba(255,255,255,.64);
+      }
+      .crop-mode-option small { font-size: 9.5px; margin-top: 2px; }
+
+      .sharp-home {
+        display: grid;
+        align-content: center;
+      }
+      .sharp-home-top {
+        margin-bottom: 7px;
+      }
+      .sharp-home-page {
+        font-size: 10.5px;
+        max-width: 118px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .sharp-home-options {
+        grid-template-columns: repeat(5, 1fr);
+        gap: 5px;
+      }
+      .sharp-step {
+        min-height: 29px;
+        padding: 5px 2px;
+        border-radius: 11px;
+        font-size: 11px;
+        background: rgba(255,255,255,.64);
+      }
+
+      .actions {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 6px;
+      }
+      .actions .wide { grid-column: 1 / -1; }
+      button, .save-link, .print-link {
+        min-height: 0;
+        padding: 7px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+      }
+      .primary { box-shadow: 0 10px 22px rgba(39,81,63,.18); }
+
+      .result-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+      }
+      .save-link, .print-link {
+        display: none;
+        align-content: center;
+        justify-content: center;
+        background: #fff;
+        border: 1px solid #d4ccb9;
+      }
+      .save-link.show, .print-link.show { display: grid; }
+
+      .status-card {
+        display: grid;
+        align-content: center;
+      }
+      .status-row {
+        font-size: 11px;
+        gap: 7px;
+      }
+      .status .dot {
+        width: 7px;
+        height: 7px;
+      }
+      .count { font-size: 10.5px; }
+      .progress {
+        margin-top: 6px;
+        height: 5px;
+      }
+
+      .list-panel {
+        min-height: 0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .list-head {
+        flex: 0 0 auto;
+        padding: 10px 13px;
+        background: rgba(255, 253, 248, .74);
+      }
+      .list-title { font-size: 15px; }
+      .mini-note { font-size: 11px; }
+      .image-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+        padding: 10px;
+        grid-template-columns: repeat(auto-fill, minmax(126px, 1fr));
+        gap: 10px;
+        align-content: start;
+        scrollbar-width: thin;
+      }
+      .empty {
+        flex: 1 1 auto;
+        min-height: 0;
+        padding: 18px;
+      }
+      .tile {
+        border-radius: 17px;
+        box-shadow: 0 6px 18px rgba(45,39,29,.052);
+        background: rgba(255,255,255,.82);
+      }
+      .tile.selected {
+        border-color: rgba(39,81,63,.78);
+        box-shadow: 0 0 0 3px rgba(39,81,63,.14), 0 10px 26px rgba(45,39,29,.08);
+      }
+      .preview {
+        height: 82px;
+        background: linear-gradient(145deg, #f7f2e8, #ece5d8);
+      }
+      .preview img {
+        max-height: 74px;
+        border-radius: 8px;
+      }
+      .page-num {
+        left: 7px;
+        top: 7px;
+        font-size: 10.5px;
+        padding: 3px 7px;
+      }
+      .meta { padding: 7px; }
+      .name { font-size: 11px; }
+      .dim { font-size: 9.7px; }
+      .tile-actions {
+        grid-template-columns: 1fr 30px;
+        gap: 5px;
+        margin-top: 6px;
+      }
+      .tile-actions button {
+        min-height: 27px;
+        padding: 5px 3px;
+        border-radius: 10px;
+        font-size: 10.5px;
+      }
+    }
+
+    @media (min-width: 901px) and (max-height: 720px) {
+      .app { grid-template-rows: 42px minmax(0, 1fr); gap: 7px; padding: 7px 0; }
+      .top { height: 42px; border-radius: 17px; }
+      .logo { width: 30px; height: 30px; border-radius: 11px; }
+      h1 { font-size: 19px; }
+      .tool-link, .privacy-badge { min-height: 28px; padding: 5px 9px; }
+      .workspace { grid-template-columns: 276px minmax(0, 1fr); gap: 8px; }
+      .controls { padding: 8px; gap: 6px; grid-template-rows: 62px 78px 56px 66px 74px 50px 72px 42px; }
+      .drop-icon { width: 25px; height: 25px; margin-bottom: 2px; }
+      .drop strong { font-size: 12.5px; }
+      .drop small { font-size: 9.5px; }
+      .size-box, .effect-box, .crop-mode-box, .sharp-home, .shadow-home, .status-card { padding: 7px; border-radius: 15px; }
+      .size-label { margin-bottom: 5px; font-size: 9.8px; }
+      .size-option { min-height: 25px; font-size: 10.5px; }
+      .crop-mode-option { min-height: 34px; font-size: 10.5px; padding: 5px 3px; }
+      .crop-mode-option small { font-size: 8.5px; }
+      .effect-label, .sharp-home-title { font-size: 11.5px; }
+      .effect-sub, .shadow-home-label { font-size: 9.7px; }
+      .sharp-step { min-height: 25px; font-size: 10px; }
+      button, .save-link, .print-link { font-size: 11px; padding: 5px 6px; }
+      .preview { height: 74px; }
+      .preview img { max-height: 67px; }
+      .image-list { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; padding: 8px; }
+      .list-head { padding: 8px 12px; }
+      .tile-actions button { min-height: 24px; }
+    }
+
+    @media (max-width: 900px) {
+      body { overflow: auto; }
+      .app { min-height: 100dvh; }
     }
 
   </style>
@@ -510,6 +891,19 @@
             <button class="sharp-step" type="button" data-sharp="50" disabled>50</button>
             <button class="sharp-step" type="button" data-sharp="75" disabled>75</button>
             <button class="sharp-step" type="button" data-sharp="100" disabled>100</button>
+          </div>
+        </div>
+
+        <div class="shadow-home">
+          <div class="effect-row">
+            <div>
+              <div class="effect-label">Shadow remover</div>
+              <div class="shadow-home-label" id="shadowHomeLabel">Select image</div>
+            </div>
+            <label class="switch" aria-label="Shadow remover for selected image">
+              <input id="shadowToggle" type="checkbox" disabled />
+              <span class="switch-ui"></span>
+            </label>
           </div>
         </div>
 
@@ -620,6 +1014,8 @@
     const homeSharpnessOptions = document.getElementById('homeSharpnessOptions');
     const homeSharpnessButtons = [...homeSharpnessOptions.querySelectorAll('[data-sharp]')];
     const homeSharpnessLabel = document.getElementById('homeSharpnessLabel');
+    const shadowToggle = document.getElementById('shadowToggle');
+    const shadowHomeLabel = document.getElementById('shadowHomeLabel');
     const cropPoints = [0, 1, 2, 3].map(i => document.getElementById('p' + i));
 
     const busyBox = document.getElementById('busyBox');
@@ -631,10 +1027,24 @@
     const JPEG_QUALITY = 0.94;
     const MAX_NORMALIZE_PIXELS = 16000000;
     const MAX_CROP_PIXELS = 10000000;
+    const SHADOW_SETTINGS = {
+      profile: 'auto',
+      shadow: 85,
+      white: 58,
+      text: 62,
+      colour: 78,
+      sharp: 32,
+      tint: true,
+      flatten: true,
+      denoise: true
+    };
     const A4 = { portrait: [595.28, 841.89], landscape: [841.89, 595.28] };
     const LETTER = { portrait: [612, 792], landscape: [792, 612] };
 
     let images = [];
+    let shadowWorker = null;
+    let shadowToken = 0;
+    let shadowJobs = new Map();
     let pageMode = 'original';
     let cropMode = 'perspective';
     let greyscaleAll = false;
@@ -660,6 +1070,10 @@
     edgeDetectBtn.addEventListener('click', autoDetectCropEdges);
     homeSharpnessButtons.forEach(button => {
       button.addEventListener('click', () => updateSelectedSharpness(Number(button.dataset.sharp) || 0));
+    });
+
+    shadowToggle.addEventListener('change', () => {
+      toggleShadowForImage(selectedId, shadowToggle.checked);
     });
 
     sizeButtons.forEach(button => {
@@ -778,6 +1192,11 @@
           width: 0,
           height: 0,
           sharpness: 0,
+          shadowEnabled: false,
+          shadowBlob: null,
+          shadowUrl: '',
+          shadowProcessing: false,
+          shadowError: false,
           loading: true,
           error: false
         };
@@ -858,7 +1277,7 @@
     function updateControls() {
       const usableCount = images.filter(item => !item.error).length;
       emptyText.style.display = images.length ? 'none' : 'grid';
-      makePdfBtn.disabled = isWorking || !usableCount || images.some(item => item.loading);
+      makePdfBtn.disabled = isWorking || !usableCount || images.some(item => item.loading || item.shadowProcessing);
       clearBtn.disabled = isWorking || !images.length;
       addMoreBtn.disabled = isWorking;
       sizeButtons.forEach(button => { button.disabled = isWorking; });
@@ -871,16 +1290,26 @@
       const pdfPages = pageMode === 'a4-cards' ? Math.ceil(usableCount / 2) : usableCount;
       countText.textContent = usableCount ? `${usableCount} image${usableCount === 1 ? '' : 's'} • ${pdfPages} page${pdfPages === 1 ? '' : 's'}` : '0 images';
       updateSharpnessPanel();
+      updateShadowPanel();
     }
 
     function createTile(item, index, animate = false) {
       const tile = document.createElement('article');
-      tile.className = `tile${dragId === item.id ? ' dragging' : ''}${selectedId === item.id ? ' selected' : ''}${item.cropped ? ' has-crop' : ''}${animate ? ' added' : ''}`;
+      tile.className = `tile${dragId === item.id ? ' dragging' : ''}${selectedId === item.id ? ' selected' : ''}${item.cropped ? ' has-crop' : ''}${item.shadowEnabled && item.shadowBlob ? ' has-shadow' : ''}${item.shadowProcessing ? ' shadow-working' : ''}${animate ? ' added' : ''}`;
       tile.dataset.id = item.id;
       const cropLabel = item.cropped ? ` • ${item.cropMode === 'normal' ? 'normal crop' : 'perspective crop'}` : '';
-      const dimText = item.loading ? 'Loading...' : item.error ? 'Not supported' : `${item.width} × ${item.height}${cropLabel}${item.sharpness ? ` • sharp ${Math.round(item.sharpness)}%` : ''}`;
+      const shadowLabel = item.shadowProcessing
+        ? ' • removing shadow'
+        : item.shadowError
+          ? ' • shadow failed'
+          : item.shadowEnabled
+            ? (item.shadowBlob ? ' • shadow clean' : ' • shadow on')
+            : '';
+      const dimText = item.loading ? 'Loading...' : item.error ? 'Not supported' : `${item.width} × ${item.height}${cropLabel}${item.sharpness ? ` • sharp ${Math.round(item.sharpness)}%` : ''}${shadowLabel}`;
       const nameText = `Page ${index + 1}`;
-      const preview = item.loading ? '<div class="loader-small" aria-hidden="true"></div>' : item.error ? '<span style="color:#9e3e37;font-size:12px;font-weight:850">Error</span>' : `<img src="${item.url}" alt="Page ${index + 1}" loading="lazy">`;
+      const previewUrl = getItemPreviewUrl(item);
+      const preview = item.loading ? '<div class="loader-small" aria-hidden="true"></div>' : item.error ? '<span style="color:#9e3e37;font-size:12px;font-weight:850">Error</span>' : `<img src="${previewUrl}" alt="Page ${index + 1}" loading="lazy">`;
+      const shadowButtonText = item.shadowEnabled ? 'Shadow on' : 'Shadow';
 
       tile.title = item.file?.name || `Page ${index + 1}`;
       tile.innerHTML = `
@@ -892,7 +1321,8 @@
           <div class="name">${nameText}</div>
           <div class="dim">${dimText}</div>
           <div class="tile-actions">
-            <button data-action="crop" type="button" aria-label="Crop page ${index + 1}" ${isWorking || item.loading || item.error ? 'disabled' : ''}>Crop</button>
+            <button data-action="crop" type="button" aria-label="Crop page ${index + 1}" ${isWorking || item.loading || item.error || item.shadowProcessing ? 'disabled' : ''}>Crop</button>
+            <button class="shadow-toggle${item.shadowEnabled ? ' active' : ''}" data-action="shadow" type="button" aria-label="Toggle shadow remover for page ${index + 1}" ${isWorking || item.loading || item.error || item.shadowProcessing ? 'disabled' : ''}>${shadowButtonText}</button>
             <button class="remove" data-action="remove" type="button" aria-label="Remove page ${index + 1}" ${isWorking ? 'disabled' : ''}>×</button>
           </div>
         </div>`;
@@ -902,6 +1332,7 @@
         startReorder(event, item.id);
       });
       tile.querySelector('[data-action="crop"]').addEventListener('click', () => openCrop(item.id));
+      tile.querySelector('[data-action="shadow"]').addEventListener('click', () => toggleShadowForImage(item.id));
       tile.querySelector('.remove').addEventListener('click', () => removeImage(item.id));
       return tile;
     }
@@ -980,8 +1411,10 @@
         const img = tile.querySelector('img');
         if (img) img.alt = `Page ${page}`;
         const crop = tile.querySelector('[data-action="crop"]');
+        const shadow = tile.querySelector('[data-action="shadow"]');
         const remove = tile.querySelector('.remove');
         if (crop) crop.setAttribute('aria-label', `Crop page ${page}`);
+        if (shadow) shadow.setAttribute('aria-label', `Toggle shadow remover for page ${page}`);
         if (remove) remove.setAttribute('aria-label', `Remove page ${page}`);
       });
     }
@@ -1019,6 +1452,24 @@
       homeSharpnessButtons.forEach(button => button.classList.toggle('active', Number(button.dataset.sharp) === value));
     }
 
+    function updateShadowPanel() {
+      const selected = getSelectedImage();
+      if (!selected) {
+        shadowHomeLabel.textContent = 'Select image';
+        shadowToggle.checked = false;
+        shadowToggle.disabled = true;
+        return;
+      }
+      const page = images.findIndex(item => item.id === selected.id) + 1;
+      shadowToggle.checked = !!selected.shadowEnabled;
+      shadowToggle.disabled = isWorking || selected.loading || selected.error || selected.shadowProcessing;
+      if (selected.shadowProcessing) shadowHomeLabel.textContent = `Page ${page} • cleaning preview`;
+      else if (selected.shadowError) shadowHomeLabel.textContent = `Page ${page} • failed, try again`;
+      else if (selected.shadowEnabled && selected.shadowBlob) shadowHomeLabel.textContent = `Page ${page} • live preview ready`;
+      else if (selected.shadowEnabled) shadowHomeLabel.textContent = `Page ${page} • cleaning needed`;
+      else shadowHomeLabel.textContent = `Page ${page} • off`;
+    }
+
     function updateSelectedSharpness(value) {
       const selected = getSelectedImage();
       if (!selected || selected.loading || selected.error || isWorking) return;
@@ -1040,6 +1491,7 @@
       if (index === -1) return;
       clearPdfUrl();
       if (images[index].url) URL.revokeObjectURL(images[index].url);
+      if (images[index].shadowUrl) URL.revokeObjectURL(images[index].shadowUrl);
       images.splice(index, 1);
       if (selectedId === id) selectedId = images[index]?.id || images[index - 1]?.id || null;
       setStatus(images.length ? 'Ready' : 'No images');
@@ -2791,6 +3243,7 @@
 
       let applied = false;
       let finalStatus = 'Crop failed';
+      let refreshShadowAfterCrop = false;
 
       setWorking(true);
       cropApplyBtn.disabled = true;
@@ -2818,6 +3271,9 @@
         item.error = false;
         item.cropped = true;
         item.cropMode = appliedMode;
+        refreshShadowAfterCrop = !!item.shadowEnabled;
+        clearShadowResult(item);
+        item.shadowEnabled = refreshShadowAfterCrop;
         selectedId = item.id;
 
         resetCropUi();
@@ -2837,6 +3293,9 @@
         if (applied) render();
         else updateControls();
         setStatus(finalStatus);
+        if (applied && refreshShadowAfterCrop) {
+          requestAnimationFrame(() => processShadowForImage(item.id, true));
+        }
       }
     }
 
@@ -3076,7 +3535,10 @@
     function clearImages() {
       if (isWorking) return;
       clearPdfUrl();
-      images.forEach(item => { if (item.url) URL.revokeObjectURL(item.url); });
+      images.forEach(item => {
+        if (item.url) URL.revokeObjectURL(item.url);
+        if (item.shadowUrl) URL.revokeObjectURL(item.shadowUrl);
+      });
       images = [];
       selectedId = null;
       setStatus('No images');
@@ -3090,6 +3552,353 @@
       saveLink.removeAttribute('href');
       saveLink.classList.remove('show');
       printBtn.classList.remove('show');
+    }
+
+    function getItemPreviewUrl(item) {
+      return item?.shadowEnabled && item.shadowUrl ? item.shadowUrl : item?.url || '';
+    }
+
+    function getItemSourceBlob(item) {
+      return item?.shadowEnabled && item.shadowBlob ? item.shadowBlob : (item?.blob || item?.file);
+    }
+
+    function clearShadowResult(item) {
+      if (!item) return;
+      if (item.shadowUrl) URL.revokeObjectURL(item.shadowUrl);
+      item.shadowBlob = null;
+      item.shadowUrl = '';
+      item.shadowProcessing = false;
+      item.shadowError = false;
+    }
+
+    async function toggleShadowForImage(id, forcedValue) {
+      if (isWorking || !id) return;
+      const item = images.find(img => img.id === id);
+      if (!item || item.loading || item.error || item.shadowProcessing) return;
+      selectedId = item.id;
+      updateSelectedTileUi();
+      const enable = typeof forcedValue === 'boolean' ? forcedValue : !item.shadowEnabled;
+      item.shadowEnabled = enable;
+      item.shadowError = false;
+      clearPdfUrl();
+      updateTile(item.id);
+      updateShadowPanel();
+      updateControls();
+
+      if (!enable) {
+        setStatus('Shadow remover off');
+        showToast('Shadow remover off for this image');
+        return;
+      }
+      if (item.shadowBlob && item.shadowUrl) {
+        setStatus('Shadow preview ready');
+        showToast('Shadow remover on for this image');
+        updateTile(item.id);
+        return;
+      }
+      await processShadowForImage(item.id);
+    }
+
+    async function processShadowForImage(id, force = false) {
+      if (isWorking && !force) return;
+      const item = images.find(img => img.id === id);
+      if (!item || item.loading || item.error || item.shadowProcessing) return;
+
+      item.shadowEnabled = true;
+      item.shadowProcessing = true;
+      item.shadowError = false;
+      clearPdfUrl();
+      updateTile(item.id);
+      updateShadowPanel();
+      setWorking(true);
+      showBusy('Removing shadows', 'Preparing live preview...', 0);
+      setStatus('Removing shadows');
+
+      try {
+        const sourceBlob = item.blob || item.file;
+        const imageData = await imageDataFromBlob(sourceBlob, item.width, item.height);
+        const result = await runShadowWorker(imageData, SHADOW_SETTINGS, (progress, message) => {
+          updateBusy('Removing shadows', message || 'Cleaning document...', progress || 0);
+        });
+
+        const outData = new ImageData(new Uint8ClampedArray(result.buffer), result.width, result.height);
+        const canvas = document.createElement('canvas');
+        canvas.width = result.width;
+        canvas.height = result.height;
+        canvas.getContext('2d', { alpha: false }).putImageData(outData, 0, 0);
+        const blob = await canvasToBlob(canvas, 'image/jpeg', JPEG_QUALITY);
+        canvas.width = 1;
+        canvas.height = 1;
+
+        if (item.shadowUrl) URL.revokeObjectURL(item.shadowUrl);
+        item.shadowBlob = blob;
+        item.shadowUrl = URL.createObjectURL(blob);
+        item.shadowEnabled = true;
+        item.shadowError = false;
+        setStatus('Shadow preview ready');
+        showToast('Shadow removed — live preview updated');
+      } catch (error) {
+        console.error(error);
+        item.shadowEnabled = false;
+        clearShadowResult(item);
+        item.shadowError = true;
+        setStatus('Shadow removal failed');
+        showToast('Shadow removal failed for this image');
+      } finally {
+        item.shadowProcessing = false;
+        hideBusy();
+        setWorking(false);
+        updateTile(item.id);
+        updateShadowPanel();
+        updateControls();
+        setTimeout(() => updateProgress(0), 700);
+      }
+    }
+
+    async function imageDataFromBlob(blob, width, height) {
+      let source;
+      if ('createImageBitmap' in window) source = await createImageBitmap(blob);
+      else source = await loadImageFromUrl(URL.createObjectURL(blob), true);
+
+      const outW = Math.max(1, Math.round(width || source.width || source.naturalWidth));
+      const outH = Math.max(1, Math.round(height || source.height || source.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = outW;
+      canvas.height = outH;
+      const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, outW, outH);
+      ctx.drawImage(source, 0, 0, outW, outH);
+      if (source.close) source.close();
+      const imageData = ctx.getImageData(0, 0, outW, outH);
+      canvas.width = 1;
+      canvas.height = 1;
+      return imageData;
+    }
+
+    function runShadowWorker(imageData, settings, onProgress) {
+      return new Promise((resolve, reject) => {
+        const token = ++shadowToken;
+        shadowJobs.set(token, { resolve, reject, onProgress });
+        makeShadowWorker().postMessage({ token, imageData, settings: { ...settings } }, [imageData.data.buffer]);
+      });
+    }
+
+    function makeShadowWorker() {
+      if (shadowWorker) return shadowWorker;
+      const code = `
+  self.onmessage = function(e){
+    const {token, imageData, settings} = e.data;
+    try{
+      postMessage({token, progress:8, message:'Reading image data…'});
+      const result = processDocument(imageData, settings, (p,m)=>postMessage({token, progress:p, message:m}));
+      postMessage({token, done:true, width:result.width, height:result.height, buffer:result.data.buffer, stats:result.stats}, [result.data.buffer]);
+    }catch(err){
+      postMessage({token, error: err && err.message ? err.message : String(err)});
+    }
+  };
+  function clamp(v,a,b){return v<a?a:v>b?b:v}
+  function satRGB(r,g,b){ const max=Math.max(r,g,b), min=Math.min(r,g,b); return max===0?0:(max-min)/max*255; }
+  function lum(r,g,b){return 0.299*r+0.587*g+0.114*b}
+  function processDocument(imageData, s, progress){
+    const w=imageData.width, h=imageData.height, src=imageData.data;
+    const swTarget = Math.min(760, Math.max(330, Math.round(260 + s.shadow*3.7)));
+    const scale = Math.min(1, swTarget / Math.max(w,h));
+    const sw = Math.max(64, Math.round(w*scale));
+    const sh = Math.max(64, Math.round(h*scale));
+    const bgR=new Float32Array(sw*sh), bgG=new Float32Array(sw*sh), bgB=new Float32Array(sw*sh);
+    const bgYHist=new Uint32Array(256);
+    progress(18,'Estimating paper background…');
+    buildBrightBackground(src,w,h,bgR,bgG,bgB,sw,sh);
+    const maxSmall=Math.max(sw,sh);
+    const radius=Math.max(9, Math.round(maxSmall * (0.035 + s.shadow/100*0.032)));
+    progress(28,'Blurring shadow map…');
+    blurRGB(bgR,bgG,bgB,sw,sh,radius,3);
+    progress(44,'Measuring illumination…');
+    let sum=0, n=sw*sh;
+    for(let i=0;i<n;i++){ const y=clamp(Math.round(lum(bgR[i],bgG[i],bgB[i])),0,255); bgYHist[y]++; sum+=y; }
+    const p88=percentile(bgYHist,0.88,n), p95=percentile(bgYHist,0.95,n);
+    const meanBg=sum/n;
+    let target=clamp(p95 + 4 + s.white*0.16, 215, 250);
+    if(s.profile==='ultra' || s.profile==='bw') target=clamp(target+8,225,253);
+    const out=new Uint8ClampedArray(src.length);
+    const shadowAmt=s.shadow/100;
+    const whiteAmt=s.white/100;
+    const textAmt=s.text/100;
+    const colourKeep=s.colour/100;
+    const bw=s.profile==='bw';
+    const neutralBase=(1-colourKeep) * 0.85;
+    const invW=sw/w, invH=sh/h;
+    let paperPixels=0, inkPixels=0;
+    progress(58,'Removing shades and protecting text…');
+    for(let y=0;y<h;y++){
+      const sy=clamp((y*invH)|0,0,sh-1);
+      const row=y*w;
+      for(let x=0;x<w;x++){
+        const si=clamp((x*invW)|0,0,sw-1)+sy*sw;
+        const i=(row+x)*4;
+        const r=src[i], g=src[i+1], b=src[i+2], a=src[i+3];
+        const oy=lum(r,g,b);
+        const br=bgR[si], bg=bgG[si], bb=bgB[si];
+        const by=Math.max(12, lum(br,bg,bb));
+        const sr=satRGB(r,g,b);
+        const colored=clamp((sr-18)/75,0,1) * clamp((245-oy)/90,0,1);
+        const ink=clamp((by-oy-12)/(55 + 34*(1-textAmt)),0,1);
+        if(ink>.25) inkPixels++; else paperPixels++;
+        if(bw){
+          const normalizedY = oy * (target / by) * (0.72 + shadowAmt*0.38);
+          const localInk = clamp((target - normalizedY - 10)/(44 - textAmt*16),0,1);
+          const threshold = localInk > .34 ? 18 : 255;
+          const soft = localInk > .18 ? clamp(255 - localInk*300, 0, 255) : 255;
+          const v = s.flatten ? (localInk>.30 ? threshold : soft) : soft;
+          out[i]=out[i+1]=out[i+2]=v; out[i+3]=a;
+          continue;
+        }
+        const yFactor=target/by;
+        const pr=target/Math.max(12,br), pg=target/Math.max(12,bg), pb=target/Math.max(12,bb);
+        const neutralize=clamp(neutralBase + (s.tint ? (1-colored)*0.42 : 0),0,1);
+        const yCorrR=r*(1 + shadowAmt*(yFactor-1));
+        const yCorrG=g*(1 + shadowAmt*(yFactor-1));
+        const yCorrB=b*(1 + shadowAmt*(yFactor-1));
+        const cCorrR=r*(1 + shadowAmt*(pr-1));
+        const cCorrG=g*(1 + shadowAmt*(pg-1));
+        const cCorrB=b*(1 + shadowAmt*(pb-1));
+        let nr=yCorrR*(1-neutralize)+cCorrR*neutralize;
+        let ng=yCorrG*(1-neutralize)+cCorrG*neutralize;
+        let nb=yCorrB*(1-neutralize)+cCorrB*neutralize;
+        // Preserve coloured stamps/signatures from over-whitening.
+        const preserve=colored*colourKeep;
+        nr=nr*(1-preserve)+Math.min(255, r*(1 + shadowAmt*(yFactor-1)*0.75))*preserve;
+        ng=ng*(1-preserve)+Math.min(255, g*(1 + shadowAmt*(yFactor-1)*0.75))*preserve;
+        nb=nb*(1-preserve)+Math.min(255, b*(1 + shadowAmt*(yFactor-1)*0.75))*preserve;
+        const cy=lum(nr,ng,nb);
+        const paper=clamp((cy-128)/105,0,1) * (1-ink) * (1-colored*0.85);
+        if(s.flatten){
+          const flat=whiteAmt * paper;
+          nr=nr*(1-flat)+255*flat;
+          ng=ng*(1-flat)+255*flat;
+          nb=nb*(1-flat)+255*flat;
+        }
+        if(s.denoise){
+          const noiseMask=paper*whiteAmt*clamp((lum(nr,ng,nb)-178)/60,0,1)*(1-colored);
+          nr=nr*(1-noiseMask)+255*noiseMask;
+          ng=ng*(1-noiseMask)+255*noiseMask;
+          nb=nb*(1-noiseMask)+255*noiseMask;
+        }
+        const boost=ink*textAmt*(1-colored*.35);
+        // Text is protected from being washed out, then boosted a little.
+        const protect=ink*(0.38+textAmt*.22);
+        nr=nr*(1-protect)+r*protect;
+        ng=ng*(1-protect)+g*protect;
+        nb=nb*(1-protect)+b*protect;
+        nr = 128 + (nr-128)*(1+boost*.55) - boost*18;
+        ng = 128 + (ng-128)*(1+boost*.55) - boost*18;
+        nb = 128 + (nb-128)*(1+boost*.55) - boost*18;
+        out[i]=clamp(Math.round(nr),0,255); out[i+1]=clamp(Math.round(ng),0,255); out[i+2]=clamp(Math.round(nb),0,255); out[i+3]=a;
+      }
+      if((y&127)===0) progress(58 + (y/h)*22, 'Correcting uneven light…');
+    }
+    if(s.sharp>0){
+      progress(84,'Sharpening text edges…');
+      unsharp(out,w,h,s.sharp/100,bw);
+    }
+    progress(96,'Finishing…');
+    return {width:w,height:h,data:out,stats:{target:Math.round(target),meanBg:Math.round(meanBg),p88,p95,paperPixels,inkPixels}};
+  }
+  function buildBrightBackground(src,w,h,rArr,gArr,bArr,sw,sh){
+    const sx=w/sw, sy=h/sh;
+    const pts=[[.5,.5],[.18,.18],[.82,.18],[.18,.82],[.82,.82],[.5,.18],[.5,.82]];
+    for(let yy=0;yy<sh;yy++){
+      for(let xx=0;xx<sw;xx++){
+        let bestY=-1, br=255,bg=255,bb=255;
+        for(let p=0;p<pts.length;p++){
+          const ox=pts[p][0], oy=pts[p][1];
+          const x=Math.min(w-1, Math.max(0, Math.floor((xx+ox)*sx)));
+          const y=Math.min(h-1, Math.max(0, Math.floor((yy+oy)*sy)));
+          const i=(y*w+x)*4;
+          const r=src[i], g=src[i+1], b=src[i+2];
+          const ly=0.299*r+0.587*g+0.114*b;
+          if(ly>bestY){bestY=ly;br=r;bg=g;bb=b;}
+        }
+        const k=yy*sw+xx; rArr[k]=br; gArr[k]=bg; bArr[k]=bb;
+      }
+    }
+  }
+  function percentile(hist,p,total){
+    const want=total*p; let run=0;
+    for(let i=0;i<256;i++){run+=hist[i]; if(run>=want) return i;}
+    return 255;
+  }
+  function blurRGB(r,g,b,w,h,rad,passes){
+    for(let pass=0;pass<passes;pass++){
+      boxBlur(r,w,h,rad); boxBlur(g,w,h,rad); boxBlur(b,w,h,rad);
+    }
+  }
+  function boxBlur(arr,w,h,rad){
+    if(rad<1) return;
+    const tmp=new Float32Array(arr.length);
+    const div=rad*2+1;
+    for(let y=0;y<h;y++){
+      let sum=0, row=y*w;
+      for(let x=-rad;x<=rad;x++) sum+=arr[row+clamp(x,0,w-1)];
+      for(let x=0;x<w;x++){
+        tmp[row+x]=sum/div;
+        sum+=arr[row+clamp(x+rad+1,0,w-1)]-arr[row+clamp(x-rad,0,w-1)];
+      }
+    }
+    for(let x=0;x<w;x++){
+      let sum=0;
+      for(let y=-rad;y<=rad;y++) sum+=tmp[clamp(y,0,h-1)*w+x];
+      for(let y=0;y<h;y++){
+        arr[y*w+x]=sum/div;
+        sum+=tmp[clamp(y+rad+1,0,h-1)*w+x]-tmp[clamp(y-rad,0,h-1)*w+x];
+      }
+    }
+  }
+  function unsharp(data,w,h,amount,bw){
+    const copy=new Uint8ClampedArray(data);
+    const amt=amount*(bw?0.72:0.48);
+    for(let y=1;y<h-1;y++){
+      const row=y*w;
+      for(let x=1;x<w-1;x++){
+        const i=(row+x)*4;
+        for(let c=0;c<3;c++){
+          const center=copy[i+c];
+          const blur=(copy[i-4+c]+copy[i+4+c]+copy[i-w*4+c]+copy[i+w*4+c]+copy[i+c]*2)/6;
+          const edge=Math.abs(center-blur);
+          const mask=clamp((edge-4)/30,0,1);
+          data[i+c]=clamp(Math.round(center+(center-blur)*amt*mask),0,255);
+        }
+      }
+    }
+  }
+`;
+      const blob = new Blob([code], { type: 'application/javascript' });
+      shadowWorker = new Worker(URL.createObjectURL(blob));
+      shadowWorker.onmessage = handleShadowWorkerMessage;
+      shadowWorker.onerror = event => {
+        const error = new Error(event.message || 'Shadow worker failed');
+        shadowJobs.forEach(job => job.reject(error));
+        shadowJobs.clear();
+        try { shadowWorker.terminate(); } catch (err) {}
+        shadowWorker = null;
+      };
+      return shadowWorker;
+    }
+
+    function handleShadowWorkerMessage(event) {
+      const message = event.data || {};
+      const job = shadowJobs.get(message.token);
+      if (!job) return;
+      if (message.progress) {
+        if (job.onProgress) job.onProgress(message.progress, message.message);
+        return;
+      }
+      shadowJobs.delete(message.token);
+      if (message.error) job.reject(new Error(message.error));
+      else job.resolve(message);
     }
 
 
@@ -3207,7 +4016,7 @@
     }
 
     async function getPdfImageDataUrl(item, greyscale) {
-      const sourceBlob = item.blob || item.file;
+      const sourceBlob = getItemSourceBlob(item);
       const sharpnessAmount = clamp((Number(item.sharpness) || 0) / 100, 0, 1.5);
       if (!greyscale && sharpnessAmount <= 0.001) return blobToDataUrl(sourceBlob);
 
