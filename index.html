@@ -816,7 +816,159 @@
       .app { min-height: 100dvh; }
     }
 
-  </style>
+  
+
+    /* Smoothness pass — softer motion, cleaner hover, smoother scrolling */
+    :root {
+      --ease-smooth: cubic-bezier(.2, .8, .2, 1);
+      --ease-soft: cubic-bezier(.16, 1, .3, 1);
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
+    }
+
+    .app {
+      animation: appIn .32s var(--ease-soft) both;
+    }
+
+    .panel,
+    .drop,
+    .size-box,
+    .effect-box,
+    .crop-mode-box,
+    .sharp-home,
+    .shadow-home,
+    .status-card,
+    .tile,
+    button,
+    .save-link,
+    .print-link,
+    .tool-link {
+      transition:
+        transform .22s var(--ease-smooth),
+        box-shadow .22s var(--ease-smooth),
+        border-color .22s var(--ease-smooth),
+        background .22s var(--ease-smooth),
+        color .18s ease,
+        opacity .18s ease;
+    }
+
+    .panel {
+      box-shadow: 0 18px 50px rgba(45, 39, 29, .075);
+    }
+
+    .controls > .size-box:hover,
+    .controls > .effect-box:hover,
+    .controls > .crop-mode-box:hover,
+    .controls > .sharp-home:hover,
+    .controls > .shadow-home:hover,
+    .controls > .status-card:hover {
+      transform: translateY(-1px);
+      border-color: rgba(49, 88, 70, .22);
+      box-shadow: 0 10px 26px rgba(45, 39, 29, .06);
+    }
+
+    button:hover:not(:disabled),
+    .save-link:hover,
+    .print-link:hover,
+    .tool-link:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 22px rgba(45, 39, 29, .085);
+    }
+
+    button:active:not(:disabled),
+    .save-link:active,
+    .print-link:active,
+    .tool-link:active {
+      transform: translateY(0) scale(.985);
+    }
+
+    .primary:hover:not(:disabled) {
+      box-shadow: 0 14px 28px rgba(39, 81, 63, .20);
+      filter: saturate(1.04);
+    }
+
+    .switch-ui,
+    .switch-ui::after {
+      transition: background .22s var(--ease-smooth), border-color .22s var(--ease-smooth), transform .22s var(--ease-smooth), box-shadow .22s var(--ease-smooth);
+    }
+
+    .switch input:checked + .switch-ui::after {
+      box-shadow: 0 5px 14px rgba(31,41,34,.18);
+    }
+
+    .image-list {
+      scroll-behavior: smooth;
+      overscroll-behavior: contain;
+      scrollbar-color: rgba(49,88,70,.38) rgba(236,229,216,.55);
+    }
+    .image-list::-webkit-scrollbar { width: 10px; height: 10px; }
+    .image-list::-webkit-scrollbar-track { background: rgba(236,229,216,.45); border-radius: 999px; }
+    .image-list::-webkit-scrollbar-thumb {
+      background: rgba(49,88,70,.34);
+      border: 3px solid rgba(250,247,240,.95);
+      border-radius: 999px;
+    }
+    .image-list::-webkit-scrollbar-thumb:hover { background: rgba(49,88,70,.52); }
+
+    .tile {
+      transform: translateZ(0);
+      will-change: transform;
+    }
+    .tile:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(45,39,29,.085);
+    }
+    .tile.selected {
+      transform: translateY(-1px);
+    }
+    .tile.dragging {
+      transition: none;
+      transform: scale(.985) translateZ(0);
+    }
+
+    .tile.added { animation: tileIn .24s var(--ease-soft) both; }
+    .preview img { animation: previewIn .22s var(--ease-soft) both; }
+
+    .crop-modal.show .crop-card,
+    .busy.show .busy-card {
+      animation: modalIn .26s var(--ease-soft) both;
+    }
+
+    .toast.show {
+      animation: toastSoft .22s var(--ease-soft) both;
+    }
+
+    .progress .bar,
+    .busy-bar {
+      transition: width .28s var(--ease-smooth);
+    }
+
+    @keyframes appIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes tileIn {
+      from { opacity: 0; transform: translateY(8px) scale(.985); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes previewIn {
+      from { opacity: 0; transform: scale(.985); filter: blur(1px); }
+      to { opacity: 1; transform: scale(1); filter: blur(0); }
+    }
+    @keyframes modalIn {
+      from { opacity: 0; transform: translateY(10px) scale(.985); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes toastSoft {
+      from { opacity: 0; transform: translate(-50%, 14px) scale(.985); }
+      to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    }
+
+</style>
 </head>
 <body>
   <main class="app">
