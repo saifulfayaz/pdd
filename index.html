@@ -531,12 +531,16 @@
     /* ── IMAGE GRID ── */
     .image-list {
       flex: 1;
+      min-height: 0;
       overflow-y: auto;
+      overflow-x: hidden;
       padding: 14px;
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+      grid-auto-rows: minmax(166px, max-content);
       gap: 10px;
       align-content: start;
+      align-items: start;
       scrollbar-width: thin;
       scrollbar-color: var(--border-md) transparent;
     }
@@ -565,22 +569,30 @@
 
     /* ── TILES ── */
     .tile {
+      min-height: 166px;
       border-radius: var(--r-md);
       background: var(--surface);
       border: 1px solid var(--border);
       overflow: hidden;
       user-select: none;
-      will-change: transform;
+      will-change: auto;
+      contain: layout paint;
+      content-visibility: auto;
+      contain-intrinsic-size: 166px 148px;
       transition: box-shadow .15s, border-color .15s, transform .15s;
       box-shadow: 0 1px 3px rgba(0,0,0,.06);
+      display: flex;
+      flex-direction: column;
     }
     .tile:hover { border-color: var(--border-md); box-shadow: 0 4px 16px rgba(0,0,0,.09); transform: translateY(-1px); }
     .tile.added { animation: tileIn .2s cubic-bezier(.16,1,.3,1) both; }
-    .tile.dragging { opacity: .75; transform: scale(.97); outline: 2px solid var(--accent); z-index: 5; }
+    .tile.dragging { opacity: .75; transform: scale(.97); outline: 2px solid var(--accent); z-index: 5; will-change: transform; }
     .tile.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg), 0 4px 14px rgba(0,0,0,.08); }
 
     .preview {
       height: 96px;
+      min-height: 96px;
+      flex: 0 0 96px;
       background: var(--surface-2);
       display: grid; place-items: center;
       position: relative;
@@ -622,7 +634,12 @@
       animation: spin .8s linear infinite;
     }
 
-    .meta { padding: 8px 9px 9px; }
+    .meta {
+      padding: 8px 9px 9px;
+      flex: 0 0 auto;
+      min-height: 69px;
+      background: var(--surface);
+    }
     .name { font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .dim { margin-top: 2px; font-size: 10px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'Geist Mono', monospace; }
 
@@ -1006,7 +1023,11 @@
       }
       .image-list {
         grid-template-columns: repeat(auto-fill, minmax(138px, 1fr));
+        grid-auto-rows: minmax(162px, max-content);
         padding: 12px;
+      }
+      .tile {
+        min-height: 162px;
       }
 
       .size-option[data-size="letter"] { display: none !important; }
@@ -1303,6 +1324,8 @@
     const toast = document.getElementById('toast');
 
     const JPEG_QUALITY = 0.94;
+    const PREVIEW_MAX_SIDE = 420;
+    const PREVIEW_JPEG_QUALITY = 0.78;
     const MAX_NORMALIZE_PIXELS = 16000000;
     const MAX_CROP_PIXELS = 10000000;
     const SHADOW_SETTINGS = {
@@ -1471,12 +1494,14 @@
           file,
           blob: null,
           url: '',
+          thumbUrl: '',
           width: 0,
           height: 0,
           sharpness: 0,
           shadowEnabled: false,
           shadowBlob: null,
           shadowUrl: '',
+          shadowThumbUrl: '',
           shadowProcessing: false,
           shadowError: false,
           loading: true,
@@ -1490,6 +1515,7 @@
           const normalized = await normalizeImage(file);
           item.blob = normalized.blob;
           item.url = URL.createObjectURL(normalized.blob);
+          if (normalized.thumbBlob) item.thumbUrl = URL.createObjectURL(normalized.thumbBlob);
           item.width = normalized.width;
           item.height = normalized.height;
           item.loading = false;
@@ -1540,10 +1566,11 @@
       ctx.drawImage(source, 0, 0, outW, outH);
       if (source.close) source.close();
 
+      const thumbBlob = await canvasToThumbnailBlob(canvas, outW, outH);
       const blob = await canvasToBlob(canvas, 'image/jpeg', JPEG_QUALITY);
       canvas.width = 1;
       canvas.height = 1;
-      return { blob, width: outW, height: outH };
+      return { blob, width: outW, height: outH, thumbBlob };
     }
 
     function render() {
@@ -1793,6 +1820,7 @@
         item.file = result.blob;
         item.blob = result.blob;
         item.url = URL.createObjectURL(result.blob);
+        await refreshThumbUrl(item, result.blob);
         item.width = result.width;
         item.height = result.height;
         item.shadowEnabled = refreshShadowAfterRotate;
@@ -1854,7 +1882,9 @@
       if (index === -1) return;
       clearPdfUrl();
       if (images[index].url) URL.revokeObjectURL(images[index].url);
+      if (images[index].thumbUrl) URL.revokeObjectURL(images[index].thumbUrl);
       if (images[index].shadowUrl) URL.revokeObjectURL(images[index].shadowUrl);
+      if (images[index].shadowThumbUrl) URL.revokeObjectURL(images[index].shadowThumbUrl);
       images.splice(index, 1);
       if (selectedId === id) selectedId = images[index]?.id || images[index - 1]?.id || null;
       setStatus(images.length ? 'Ready' : 'No images');
@@ -4127,6 +4157,7 @@
         item.file = result.blob;
         item.blob = result.blob;
         item.url = URL.createObjectURL(result.blob);
+        await refreshThumbUrl(item, result.blob);
         item.width = result.width;
         item.height = result.height;
         item.loading = false;
@@ -4398,7 +4429,9 @@
       clearPdfUrl();
       images.forEach(item => {
         if (item.url) URL.revokeObjectURL(item.url);
+        if (item.thumbUrl) URL.revokeObjectURL(item.thumbUrl);
         if (item.shadowUrl) URL.revokeObjectURL(item.shadowUrl);
+        if (item.shadowThumbUrl) URL.revokeObjectURL(item.shadowThumbUrl);
       });
       images = [];
       selectedId = null;
@@ -4416,7 +4449,9 @@
     }
 
     function getItemPreviewUrl(item) {
-      return item?.shadowEnabled && item.shadowUrl ? item.shadowUrl : item?.url || '';
+      if (!item) return '';
+      if (item.shadowEnabled) return item.shadowThumbUrl || item.shadowUrl || item.thumbUrl || item.url || '';
+      return item.thumbUrl || item.url || '';
     }
 
     function getItemSourceBlob(item) {
@@ -4426,8 +4461,10 @@
     function clearShadowResult(item) {
       if (!item) return;
       if (item.shadowUrl) URL.revokeObjectURL(item.shadowUrl);
+      if (item.shadowThumbUrl) URL.revokeObjectURL(item.shadowThumbUrl);
       item.shadowBlob = null;
       item.shadowUrl = '';
+      item.shadowThumbUrl = '';
       item.shadowProcessing = false;
       item.shadowError = false;
     }
@@ -4492,8 +4529,10 @@
         canvas.height = 1;
 
         if (item.shadowUrl) URL.revokeObjectURL(item.shadowUrl);
+        if (item.shadowThumbUrl) URL.revokeObjectURL(item.shadowThumbUrl);
         item.shadowBlob = blob;
         item.shadowUrl = URL.createObjectURL(blob);
+        item.shadowThumbUrl = await createThumbnailUrlFromBlob(blob);
         item.shadowEnabled = true;
         item.shadowError = false;
         setStatus('Shadow preview ready');
@@ -4859,6 +4898,70 @@
         out[oi + c] = top * (1 - dy) + bottom * dy;
       }
       out[oi + 3] = 255;
+    }
+
+    async function canvasToThumbnailBlob(sourceCanvas, width, height) {
+      const maxSide = Math.max(width || sourceCanvas.width, height || sourceCanvas.height);
+      const scale = Math.min(1, PREVIEW_MAX_SIDE / Math.max(1, maxSide));
+      const thumbW = Math.max(1, Math.round((width || sourceCanvas.width) * scale));
+      const thumbH = Math.max(1, Math.round((height || sourceCanvas.height) * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = thumbW;
+      canvas.height = thumbH;
+      const ctx = canvas.getContext('2d', { alpha: false });
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'medium';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, thumbW, thumbH);
+      ctx.drawImage(sourceCanvas, 0, 0, thumbW, thumbH);
+      const blob = await canvasToBlob(canvas, 'image/jpeg', PREVIEW_JPEG_QUALITY);
+      canvas.width = 1;
+      canvas.height = 1;
+      return blob;
+    }
+
+    async function createThumbnailUrlFromBlob(blob) {
+      if (!blob) return '';
+      let source;
+      try {
+        if ('createImageBitmap' in window) source = await createImageBitmap(blob);
+        else source = await loadImageFromUrl(URL.createObjectURL(blob), true);
+        const width = source.width || source.naturalWidth || 1;
+        const height = source.height || source.naturalHeight || 1;
+        const maxSide = Math.max(width, height);
+        const scale = Math.min(1, PREVIEW_MAX_SIDE / Math.max(1, maxSide));
+        const thumbW = Math.max(1, Math.round(width * scale));
+        const thumbH = Math.max(1, Math.round(height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = thumbW;
+        canvas.height = thumbH;
+        const ctx = canvas.getContext('2d', { alpha: false });
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'medium';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, thumbW, thumbH);
+        ctx.drawImage(source, 0, 0, thumbW, thumbH);
+        const thumbBlob = await canvasToBlob(canvas, 'image/jpeg', PREVIEW_JPEG_QUALITY);
+        canvas.width = 1;
+        canvas.height = 1;
+        return URL.createObjectURL(thumbBlob);
+      } finally {
+        if (source && source.close) source.close();
+      }
+    }
+
+    async function refreshThumbUrl(item, blob) {
+      if (!item || !blob) return;
+      const oldThumb = item.thumbUrl;
+      try {
+        const newThumb = await createThumbnailUrlFromBlob(blob);
+        if (newThumb) {
+          item.thumbUrl = newThumb;
+          if (oldThumb) URL.revokeObjectURL(oldThumb);
+        }
+      } catch (error) {
+        console.warn('Thumbnail refresh failed', error);
+      }
     }
 
     function loadImageFromUrl(url, revoke = false) {
